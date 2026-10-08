@@ -1,0 +1,69 @@
+{
+ "link_embedded": {
+  "status": 200,
+  "sha256": "41bea097b788fd1261bd105a3c422c59b1875fe489e005cf3df43fa989d45ca8",
+  "size": 3100
+ },
+ "link_jpeg": {
+  "status": 200,
+  "sha256": "850ce3bcae46745fd3f1b26adaac113dad76901cedc87fa6a200a223882c9109",
+  "size": 3100
+ },
+ "link_two_blobs": {
+  "status": 200,
+  "sha256": "ce7d212e5849eb42458b8e2dc2efeef3ffdd099fbb8b3da386eb07f7bfb7ae2f",
+  "size": 4000
+ },
+ "text": {
+  "status": 404,
+  "detail": "no payload"
+ },
+ "link_empty_payload": {
+  "status": 404,
+  "detail": "no payload"
+ },
+ "link_only": {
+  "status": 404,
+  "detail": "no payload"
+ },
+ "link_garbage": {
+  "status": 404,
+  "detail": "unparseable payload"
+ },
+ "link_no_objects": {
+  "status": 404,
+  "detail": "unparseable payload"
+ },
+ "link_list_plist": {
+  "status": 404,
+  "detail": "unparseable payload"
+ },
+ "link_meta": {
+  "status": 404,
+  "detail": "no embedded image"
+ },
+ "link_scan": {
+  "status": 404,
+  "detail": "no embedded image"
+ },
+ "link_decoy": {
+  "status": 404,
+  "detail": "no embedded image"
+ },
+ "link_title_only": {
+  "status": 404,
+  "detail": "no embedded image"
+ },
+ "link_empty": {
+  "status": 404,
+  "detail": "no embedded image"
+ },
+ "payload_no_balloon": {
+  "status": 404,
+  "detail": "no embedded image"
+ },
+ "missing_rowid": {
+  "status": 404,
+  "detail": "no payload"
+ }
+}

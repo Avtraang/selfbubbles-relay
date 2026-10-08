@@ -1,0 +1,28 @@
+name: Feature request
+description: Something the relay should do and does not.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a one-person project, so a request is a suggestion, not a ticket in a queue. Issues are public forever: describe your setup without tokens, phone numbers, e-mail addresses, names or message text.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The situation that the relay does not handle today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should the relay do?
+      description: "The behaviour you would like. If it changes an HTTP route or a response shape, say which: the Android app depends on them."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+    validations:
+      required: false

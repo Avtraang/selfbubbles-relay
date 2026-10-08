@@ -1,0 +1,764 @@
+{
+ "first_run": [
+  {
+   "chat_guid": "SMS;+;chat500",
+   "chat_name": "Bob, +15550000003",
+   "is_group": true,
+   "handles": [
+    "+15550000002",
+    "+15550000003"
+   ],
+   "icon_url": "/chat_icon/SMS%3B%2B%3Bchat500",
+   "last_date": 1704067278.0,
+   "last_rowid": 79,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "You: g5 me https://g5.example.invalid/x",
+   "unread": 0,
+   "service": "SMS",
+   "via_label": "SMS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "iMessage;+;chat400",
+   "chat_name": "Alice, Alice",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat400",
+   "last_date": 1704067276.0,
+   "last_rowid": 77,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Alice: g4 alice by email",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat300",
+   "chat_name": "Alice, Alice, Bob, +15550000003…",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002",
+    "+15550000004",
+    "+15550000003",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat300",
+   "last_date": 1704067274.0,
+   "last_rowid": 75,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Dana: g3 dana",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat200",
+   "chat_name": "Synthetic Crew",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002",
+    "+15550009999"
+   ],
+   "icon_url": null,
+   "last_date": 1704067273.0,
+   "last_rowid": 74,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "You: g2 me",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat100",
+   "chat_name": "Alice, Bob",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat100",
+   "last_date": 1704067270.0,
+   "last_rowid": 71,
+   "pinned": true,
+   "pin_index": 0,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Bob: g1 reply",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "any;-;+15550000006",
+   "chat_name": "+15550000006",
+   "is_group": false,
+   "handles": [
+    "+15550000006"
+   ],
+   "icon_url": null,
+   "last_date": 1704067265.0,
+   "last_rowid": 66,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "system note https://sys.example.invalid/n.",
+   "unread": 0,
+   "service": null,
+   "via_label": null,
+   "send_warning": null
+  },
+  {
+   "chat_guid": "RCS;-;+15550000002",
+   "chat_name": "Bob Brown",
+   "is_group": false,
+   "handles": [
+    "+15550000002"
+   ],
+   "icon_url": null,
+   "last_date": 1704067263.0,
+   "last_rowid": 64,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": true,
+   "preview": "blank service",
+   "unread": 0,
+   "service": "RCS",
+   "via_label": "RCS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "SMS;-;+15550000003",
+   "chat_name": "+15550000003",
+   "is_group": false,
+   "handles": [
+    "+15550000003"
+   ],
+   "icon_url": null,
+   "last_date": 1704067260.0,
+   "last_rowid": 61,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": true,
+   "auto_translate": false,
+   "preview": "sms out",
+   "unread": 0,
+   "service": "SMS",
+   "via_label": "SMS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "SMS;-;+15550000001",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "+15550000001"
+   ],
+   "icon_url": null,
+   "last_date": 1704067258.0,
+   "last_rowid": 59,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "now imessage",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;-;alice@example.invalid",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "alice@example.invalid"
+   ],
+   "icon_url": null,
+   "last_date": 1704067256.0,
+   "last_rowid": 57,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "via email",
+   "unread": 1,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;-;+15550000001",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "+15550000001"
+   ],
+   "icon_url": null,
+   "last_date": 1704067255.0,
+   "last_rowid": 56,
+   "pinned": true,
+   "pin_index": 1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "📷 Photo",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  }
+ ],
+ "first_run_second_call": [
+  {
+   "chat_guid": "SMS;+;chat500",
+   "chat_name": "Bob, +15550000003",
+   "is_group": true,
+   "handles": [
+    "+15550000002",
+    "+15550000003"
+   ],
+   "icon_url": "/chat_icon/SMS%3B%2B%3Bchat500",
+   "last_date": 1704067278.0,
+   "last_rowid": 79,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "You: g5 me https://g5.example.invalid/x",
+   "unread": 0,
+   "service": "SMS",
+   "via_label": "SMS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "iMessage;+;chat400",
+   "chat_name": "Alice, Alice",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat400",
+   "last_date": 1704067276.0,
+   "last_rowid": 77,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Alice: g4 alice by email",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat300",
+   "chat_name": "Alice, Alice, Bob, +15550000003…",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002",
+    "+15550000004",
+    "+15550000003",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat300",
+   "last_date": 1704067274.0,
+   "last_rowid": 75,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Dana: g3 dana",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat200",
+   "chat_name": "Synthetic Crew",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002",
+    "+15550009999"
+   ],
+   "icon_url": null,
+   "last_date": 1704067273.0,
+   "last_rowid": 74,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "You: g2 me",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat100",
+   "chat_name": "Alice, Bob",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat100",
+   "last_date": 1704067270.0,
+   "last_rowid": 71,
+   "pinned": true,
+   "pin_index": 0,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Bob: g1 reply",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "any;-;+15550000006",
+   "chat_name": "+15550000006",
+   "is_group": false,
+   "handles": [
+    "+15550000006"
+   ],
+   "icon_url": null,
+   "last_date": 1704067265.0,
+   "last_rowid": 66,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "system note https://sys.example.invalid/n.",
+   "unread": 0,
+   "service": null,
+   "via_label": null,
+   "send_warning": null
+  },
+  {
+   "chat_guid": "RCS;-;+15550000002",
+   "chat_name": "Bob Brown",
+   "is_group": false,
+   "handles": [
+    "+15550000002"
+   ],
+   "icon_url": null,
+   "last_date": 1704067263.0,
+   "last_rowid": 64,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": true,
+   "preview": "blank service",
+   "unread": 0,
+   "service": "RCS",
+   "via_label": "RCS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "SMS;-;+15550000003",
+   "chat_name": "+15550000003",
+   "is_group": false,
+   "handles": [
+    "+15550000003"
+   ],
+   "icon_url": null,
+   "last_date": 1704067260.0,
+   "last_rowid": 61,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": true,
+   "auto_translate": false,
+   "preview": "sms out",
+   "unread": 0,
+   "service": "SMS",
+   "via_label": "SMS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "SMS;-;+15550000001",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "+15550000001"
+   ],
+   "icon_url": null,
+   "last_date": 1704067258.0,
+   "last_rowid": 59,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "now imessage",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;-;alice@example.invalid",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "alice@example.invalid"
+   ],
+   "icon_url": null,
+   "last_date": 1704067256.0,
+   "last_rowid": 57,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "via email",
+   "unread": 1,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;-;+15550000001",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "+15550000001"
+   ],
+   "icon_url": null,
+   "last_date": 1704067255.0,
+   "last_rowid": 56,
+   "pinned": true,
+   "pin_index": 1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "📷 Photo",
+   "unread": 0,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  }
+ ],
+ "with_reads": [
+  {
+   "chat_guid": "SMS;+;chat500",
+   "chat_name": "Bob, +15550000003",
+   "is_group": true,
+   "handles": [
+    "+15550000002",
+    "+15550000003"
+   ],
+   "icon_url": "/chat_icon/SMS%3B%2B%3Bchat500",
+   "last_date": 1704067278.0,
+   "last_rowid": 79,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "You: g5 me https://g5.example.invalid/x",
+   "unread": 1,
+   "service": "SMS",
+   "via_label": "SMS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "iMessage;+;chat400",
+   "chat_name": "Alice, Alice",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat400",
+   "last_date": 1704067276.0,
+   "last_rowid": 77,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Alice: g4 alice by email",
+   "unread": 2,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat300",
+   "chat_name": "Alice, Alice, Bob, +15550000003…",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002",
+    "+15550000004",
+    "+15550000003",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat300",
+   "last_date": 1704067274.0,
+   "last_rowid": 75,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Dana: g3 dana",
+   "unread": 1,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat200",
+   "chat_name": "Synthetic Crew",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002",
+    "+15550009999"
+   ],
+   "icon_url": null,
+   "last_date": 1704067273.0,
+   "last_rowid": 74,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "You: g2 me",
+   "unread": 2,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat100",
+   "chat_name": "Alice, Bob",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat100",
+   "last_date": 1704067270.0,
+   "last_rowid": 71,
+   "pinned": true,
+   "pin_index": 0,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Bob: g1 reply",
+   "unread": 2,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "any;-;+15550000006",
+   "chat_name": "+15550000006",
+   "is_group": false,
+   "handles": [
+    "+15550000006"
+   ],
+   "icon_url": null,
+   "last_date": 1704067265.0,
+   "last_rowid": 66,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "system note https://sys.example.invalid/n.",
+   "unread": 2,
+   "service": null,
+   "via_label": null,
+   "send_warning": null
+  },
+  {
+   "chat_guid": "RCS;-;+15550000002",
+   "chat_name": "Bob Brown",
+   "is_group": false,
+   "handles": [
+    "+15550000002"
+   ],
+   "icon_url": null,
+   "last_date": 1704067263.0,
+   "last_rowid": 64,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": true,
+   "preview": "blank service",
+   "unread": 1,
+   "service": "RCS",
+   "via_label": "RCS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "SMS;-;+15550000003",
+   "chat_name": "+15550000003",
+   "is_group": false,
+   "handles": [
+    "+15550000003"
+   ],
+   "icon_url": null,
+   "last_date": 1704067260.0,
+   "last_rowid": 61,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": true,
+   "auto_translate": false,
+   "preview": "sms out",
+   "unread": 0,
+   "service": "SMS",
+   "via_label": "SMS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "SMS;-;+15550000001",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "+15550000001"
+   ],
+   "icon_url": null,
+   "last_date": 1704067258.0,
+   "last_rowid": 59,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "now imessage",
+   "unread": 1,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;-;alice@example.invalid",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "alice@example.invalid"
+   ],
+   "icon_url": null,
+   "last_date": 1704067256.0,
+   "last_rowid": 57,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "via email",
+   "unread": 1,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;-;+15550000001",
+   "chat_name": "Alice Anders",
+   "is_group": false,
+   "handles": [
+    "+15550000001"
+   ],
+   "icon_url": null,
+   "last_date": 1704067255.0,
+   "last_rowid": 56,
+   "pinned": true,
+   "pin_index": 1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "📷 Photo",
+   "unread": 41,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  }
+ ],
+ "with_reads_limit_3": [
+  {
+   "chat_guid": "SMS;+;chat500",
+   "chat_name": "Bob, +15550000003",
+   "is_group": true,
+   "handles": [
+    "+15550000002",
+    "+15550000003"
+   ],
+   "icon_url": "/chat_icon/SMS%3B%2B%3Bchat500",
+   "last_date": 1704067278.0,
+   "last_rowid": 79,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "You: g5 me https://g5.example.invalid/x",
+   "unread": 1,
+   "service": "SMS",
+   "via_label": "SMS · sent through stub relay phone",
+   "send_warning": "Replies here go out as text messages through your stub relay phone, not iMessage, and may show as Not Delivered."
+  },
+  {
+   "chat_guid": "iMessage;+;chat400",
+   "chat_name": "Alice, Alice",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat400",
+   "last_date": 1704067276.0,
+   "last_rowid": 77,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Alice: g4 alice by email",
+   "unread": 2,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  },
+  {
+   "chat_guid": "iMessage;+;chat300",
+   "chat_name": "Alice, Alice, Bob, +15550000003…",
+   "is_group": true,
+   "handles": [
+    "+15550000001",
+    "+15550000002",
+    "+15550000004",
+    "+15550000003",
+    "alice@example.invalid"
+   ],
+   "icon_url": "/chat_icon/iMessage%3B%2B%3Bchat300",
+   "last_date": 1704067274.0,
+   "last_rowid": 75,
+   "pinned": false,
+   "pin_index": -1,
+   "archived": false,
+   "auto_translate": false,
+   "preview": "Dana: g3 dana",
+   "unread": 1,
+   "service": "iMessage",
+   "via_label": "iMessage",
+   "send_warning": null
+  }
+ ],
+ "with_reads_limit_0": []
+}

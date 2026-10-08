@@ -1,0 +1,82 @@
+{
+ "from_zero": [
+  [
+   {
+    "rowid": 50,
+    "guid": "G-EDITED-1",
+    "text": "edited once",
+    "date": 1704067249.0,
+    "date_read": null,
+    "date_edited": 1704067200.00001,
+    "is_from_me": true,
+    "sender": null,
+    "sender_handle": null,
+    "chat_guid": "iMessage;-;+15550000001",
+    "chat_name": "Alice Anders",
+    "is_group": false,
+    "has_attachments": false,
+    "assoc_guid": null,
+    "assoc_type": 0,
+    "attachments": [],
+    "link": null,
+    "reply_to_guid": null,
+    "reply_to": null,
+    "service": "iMessage"
+   },
+   {
+    "rowid": 1,
+    "guid": "G-TEXT",
+    "text": "hello from alice",
+    "date": 1704067200.0,
+    "date_read": 1704067200.0,
+    "date_edited": 1704067200.00002,
+    "is_from_me": false,
+    "sender": "Alice Anders",
+    "sender_handle": "+15550000001",
+    "chat_guid": "iMessage;-;+15550000001",
+    "chat_name": "Alice Anders",
+    "is_group": false,
+    "has_attachments": false,
+    "assoc_guid": null,
+    "assoc_type": 0,
+    "attachments": [],
+    "link": null,
+    "reply_to_guid": null,
+    "reply_to": null,
+    "service": "iMessage"
+   }
+  ],
+  725760000000020000
+ ],
+ "from_mid_mark": [
+  [
+   {
+    "rowid": 1,
+    "guid": "G-TEXT",
+    "text": "hello from alice",
+    "date": 1704067200.0,
+    "date_read": 1704067200.0,
+    "date_edited": 1704067200.00002,
+    "is_from_me": false,
+    "sender": "Alice Anders",
+    "sender_handle": "+15550000001",
+    "chat_guid": "iMessage;-;+15550000001",
+    "chat_name": "Alice Anders",
+    "is_group": false,
+    "has_attachments": false,
+    "assoc_guid": null,
+    "assoc_type": 0,
+    "attachments": [],
+    "link": null,
+    "reply_to_guid": null,
+    "reply_to": null,
+    "service": "iMessage"
+   }
+  ],
+  725760000000020000
+ ],
+ "from_top": [
+  [],
+  725760000000020000
+ ]
+}

@@ -1,0 +1,142 @@
+name: Bug report
+description: The relay does something wrong. Setup questions go to Discussions, security problems to the Security tab.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Issues are public forever. Never paste a token, a `.env` file, `relay_state.json` or message text here.** The same goes for phone numbers, e-mail addresses, contact names and the Cloudflare or BlueBubbles credentials.
+
+        Everything this form asks for can be given without any of that. How to clean a log before you paste it: [docs/privacy-and-logs.md](https://github.com/Avtraang/selfbubbles-relay/blob/main/docs/privacy-and-logs.md#redacting-before-you-paste-a-log-into-an-issue).
+
+        If the problem could expose someone's messages, stop here and use the **Security** tab > **Report a vulnerability** instead ([SECURITY.md](https://github.com/Avtraang/selfbubbles-relay/blob/main/SECURITY.md)).
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: "`sw_vers -productVersion` on the Mac that runs the relay."
+      placeholder: "27.0"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: "`venv/bin/python --version` in the relay checkout."
+      placeholder: "3.14.7"
+    validations:
+      required: true
+  - type: dropdown
+    id: sending
+    attributes:
+      label: How the relay sends
+      description: "The `send engines` row of the doctor table tells you: `bluebubbles, applescript` or `applescript`."
+      options:
+        - BlueBubbles server (fill in the next field)
+        - AppleScript only (no BlueBubbles)
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: bluebubbles
+    attributes:
+      label: BlueBubbles server version and Private API helper state
+      description: "The version of the BlueBubbles server app, and whether its Private API helper is connected, not connected or switched off. Leave empty for AppleScript only."
+      placeholder: "1.9.9, Private API helper connected"
+    validations:
+      required: false
+  - type: input
+    id: commit
+    attributes:
+      label: Relay commit
+      description: "`git rev-parse --short HEAD` in the relay checkout."
+      placeholder: "0a1b2c3"
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        **For the next field: the doctor table, with your user name taken out.** In a terminal on the Mac, in the relay checkout:
+
+        ```sh
+        venv/bin/python relay.py --check 2>&1 | sed -E 's#/Users/[^/ ]+#/Users/<you>#g'
+        ```
+
+        The doctor prints status words only, never a token, a password or a URL. It does print paths, and the `sed` replaces your macOS user name in them.
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of python relay.py --check
+      description: "Paste what the command above printed, from the `[check] relay doctor` line down. Then look for your macOS user name once more: in the `data dir` row, in the interpreter named in a `chat.db` hint and, if you kept the lines above the table, in the `relay.py:NNN: DeprecationWarning` line Python prints first. Replace the address in the `listening on` row if it is not `127.0.0.1` or `0.0.0.0`."
+      render: text
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        **For the next field: `/health`, without showing the token and without your own addresses.** In the same terminal, run these three lines one at a time. The first waits for you to paste the relay token (the `IMSG_TOKEN` value the relay runs with) and press Return: nothing is shown, and the token does not end up in the shell history.
+
+        ```sh
+        read -rs IMSG_TOKEN
+        curl -s -H "X-Imsg-Token: $IMSG_TOKEN" http://127.0.0.1:8700/health | venv/bin/python -c "import json,sys; d=json.load(sys.stdin); print(json.dumps({k: d.get(k) for k in ('engines','features','protocol')}))"
+        unset IMSG_TOKEN
+        ```
+
+        The second line prints `engines`, `features` and `protocol` and nothing else (put your own port in place of 8700 if you set `IMSG_PORT`). Three `null` values mean the relay did not accept the token. A Python traceback means nothing answered on that port: say so in the field instead of pasting it.
+
+        **Never paste the raw `/health` answer, and never a command with the token typed into it.** The raw answer contains `self`: your own phone numbers and e-mail addresses.
+  - type: textarea
+    id: health
+    attributes:
+      label: engines and features from the authenticated /health
+      description: "The one line the second command above printed."
+      placeholder: '{"engines": ["bluebubbles", "applescript"], "features": {"facetime": true, "map": false, "translate": false, "voice": true}, "protocol": 1}'
+      render: json
+    validations:
+      required: true
+  - type: dropdown
+    id: exposure
+    attributes:
+      label: How the relay is exposed to the phone
+      options:
+        - Tailscale Serve
+        - Cloudflare Tunnel + Access
+        - Other (describe it below, without host names)
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: App version and Android version
+      description: "Only if the phone is part of the problem: the SelfBubbles app version (or commit) and the Android version. No device name."
+      placeholder: "app 1.0 (0a1b2c3), Android 16"
+    validations:
+      required: false
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: "What you did and what the relay or the app did, step by step. Write CHAT A or PERSON B where a real one was involved (not `<chat>`: GitHub hides anything in angle brackets here), and describe a message instead of quoting it."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines, redacted
+      description: "The lines of `relay.log` or `relay.err` (or the traceback) from the moment it went wrong, not the whole file. **Redact them first: never a token, a `.env`, `relay_state.json` or message text.** Chat identifiers, names, search terms, file names, your user name in paths and IP addresses all have to go; the list is in [docs/privacy-and-logs.md](https://github.com/Avtraang/selfbubbles-relay/blob/main/docs/privacy-and-logs.md#redacting-before-you-paste-a-log-into-an-issue)."
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Before you submit
+      options:
+        - label: "Nothing above contains a token or password, a phone number, an e-mail address, a contact name, message text, a host name of mine or my macOS user name."
+          required: true

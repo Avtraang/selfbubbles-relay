@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent for the relay. Written from the configuration KEY NAMES only;
+  every secret, path, number and label below is a placeholder or a sample.
+  Two ways to configure the relay:
+
+    (a) put the values in this plist's EnvironmentVariables (what this
+        example shows), or
+    (b) leave everything except PYTHONUNBUFFERED out of EnvironmentVariables
+        and put the rest in a .env file beside relay.py (see .env.example) —
+        the relay loads it when python-dotenv is installed. Real environment
+        variables always win over .env.
+
+  Install:
+    cp launchd/org.selfbubbles.relay.plist.example ~/Library/LaunchAgents/org.selfbubbles.relay.plist
+    edit the paths and values, then
+    launchctl bootstrap gui/$UID ~/Library/LaunchAgents/org.selfbubbles.relay.plist
+  Restart the process, after a code change or an edit to .env:
+    launchctl kickstart -k gui/$UID/org.selfbubbles.relay
+  After editing THIS file, EnvironmentVariables included, a kickstart is not
+  enough: it restarts the process but launchd does not re-read the plist, so
+  the relay comes back with the environment loaded at the last bootstrap.
+  Unload the job and load it again:
+    launchctl bootout gui/$UID/org.selfbubbles.relay
+    launchctl bootstrap gui/$UID ~/Library/LaunchAgents/org.selfbubbles.relay.plist
+  Check the configuration without starting the server: run relay.py with the
+  "check" flag (two dashes in front; an XML comment cannot spell it out).
+
+  Placeholders: a value that still starts with CHANGE-ME (or change-me,
+  changeme, replace-with, your-) is never used as a secret. The relay refuses
+  to start while IMSG_TOKEN is one, and treats BB_PASSWORD and the optional
+  tokens further down as unset while they are.
+
+  The interpreter named in ProgramArguments is the binary that needs Full
+  Disk Access (System Settings > Privacy & Security) to read chat.db; the
+  doctor prints its exact path when the database is not readable.
+
+  relay.log / relay.err hold the relay's output; the token is masked in them,
+  but they still carry chat identifiers (phone numbers, e-mail addresses),
+  names and file names: keep them private (docs/privacy-and-logs.md).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>org.selfbubbles.relay</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOU/selfbubbles-relay/venv/bin/python</string>
+        <string>/Users/YOU/selfbubbles-relay/relay.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/YOU/selfbubbles-relay</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/YOU/selfbubbles-relay/relay.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOU/selfbubbles-relay/relay.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- relay core. IMSG_TOKEN is a placeholder here and the relay will not
+             start with it: put a long random string in its place (the output
+             of "openssl rand -hex 32"). -->
+        <key>IMSG_TOKEN</key>
+        <string>CHANGE-ME-long-random-string</string>
+        <!-- Address to bind: 127.0.0.1 (loopback) when the HTTPS route (Tailscale Serve, a Cloudflare Tunnel) runs on this same Mac.
+             Use 0.0.0.0 (the built-in default when this key is absent) only if the route reaches the relay over the LAN. -->
+        <key>IMSG_BIND</key>
+        <string>127.0.0.1</string>
+        <!-- Read by Python itself, not by the relay: unbuffered output, so
+             relay.log is written line by line. The relay flushes its own
+             lines as well; this key is the belt-and-braces half and has no
+             effect from a .env file. -->
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>IMSG_SELF</key>
+        <string>+15555550100</string>
+        <key>TEXT_RELAY_LABEL</key>
+        <string>Pixel</string>
+        <!-- optional: where the FaceTime rig's log and working files go (default: the checkout) -->
+        <!-- <key>RELAY_DATA_DIR</key><string>/Users/YOU/selfbubbles-relay</string> -->
+
+        <!-- BlueBubbles (send engine, contacts, FaceTime). CHANGE-ME is a
+             placeholder and counts as no password (AppleScript-only sending):
+             put the server password here, or delete the key if you do not
+             run BlueBubbles. -->
+        <key>BB_PASSWORD</key>
+        <string>CHANGE-ME</string>
+
+        <!-- Feature switches advertised to the app (GET /health "features"). All
+             off, so a fresh install starts with the plain inbox; delete a key to
+             let the relay derive it (facetime and voice from BB_PASSWORD, map
+             from MAPKIT_TOKEN plus HA_TOKEN, translate from OLLAMA_MODEL or
+             MARIAN_URL). The relay's routes stay mounted either way. -->
+        <key>FEATURE_FACETIME</key>
+        <string>0</string>
+        <key>FEATURE_MAP</key>
+        <string>0</string>
+        <key>FEATURE_TRANSLATE</key>
+        <string>0</string>
+        <key>FEATURE_VOICE</key>
+        <string>0</string>
+
+        <!-- Mac-side FaceTime auto-admit rig (display-specific, needs the
+             author's Accessibility-granted helper app; off without it); 0 = off -->
+        <key>FT_AUTOADMIT</key>
+        <string>0</string>
+
+        <!-- Everything below is OPTIONAL and ships commented out. Uncomment a
+             block only once you have the real values for it: a CHANGE-ME token
+             is reported as a placeholder and ignored, but every other key is
+             taken as it is (a file path, a model name, a URL, sample names). -->
+
+        <!-- edit sent messages: imessage-cli, Beeper's open-source command-line tool
+             ("brew install beeper/tap/imessage-cli"), which drives Messages.app. The Python
+             named in ProgramArguments then needs Accessibility and Automation as well;
+             "imessage-cli authorize" shows the grants of the program that runs it and asks
+             for a missing one, and the relay's start-up table says "Accessibility NOT
+             GRANTED" when that Python lacks it. Checked with version 0.24.2 ("brew pin
+             imessage-cli" keeps it). Leave the key out and the relay looks in
+             /opt/homebrew/bin, /usr/local/bin and on the PATH; give the path to name the
+             binary, or 0 to keep the engine off.
+             (Undo Send needs no key: it goes through BlueBubbles.)
+        <key>IMESSAGE_CLI</key>
+        <string>/opt/homebrew/bin/imessage-cli</string>
+        -->
+
+        <!-- push notifications (Firebase service-account JSON); omit to run WebSocket-only
+        <key>FCM_CREDS</key>
+        <string>/Users/YOU/selfbubbles-relay/fcm-key.json</string>
+        -->
+
+        <!-- Google Messages via Beeper Desktop; omit to disable
+        <key>BEEPER_TOKEN</key>
+        <string>CHANGE-ME</string>
+        <key>BEEPER_GM_ACCOUNT_LABELS</key>
+        <string>you@example.com=Pixel</string>
+        -->
+
+        <!-- translation: Ollama model name (omit to keep the built-in default; setting it
+             advertises the translate feature) and, if you run one, the MarianMT service
+        <key>OLLAMA_MODEL</key>
+        <string>qwen3:30b</string>
+        <key>MARIAN_URL</key>
+        <string>http://127.0.0.1:8701</string>
+        -->
+
+        <!-- Home Assistant locations + Apple MapKit map; omit all four to disable
+        <key>HA_URL</key>
+        <string>http://homeassistant.local:8123</string>
+        <key>HA_TOKEN</key>
+        <string>CHANGE-ME</string>
+        <key>HA_LOCATIONS</key>
+        <string>Alice=device_tracker.alice_phone,Bob=device_tracker.bob_car</string>
+        <key>MAPKIT_TOKEN</key>
+        <string>CHANGE-ME</string>
+        -->
+    </dict>
+</dict>
+</plist>

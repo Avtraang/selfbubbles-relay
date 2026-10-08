@@ -1,0 +1,498 @@
+{
+ "cases": {
+  "'alice':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;+;chat400",
+     "chat_name": "Alice, Alice",
+     "rowid": 77,
+     "date": 1704067276.0,
+     "snippet": "Alice: g4 alice by email"
+    },
+    {
+     "chat_guid": "iMessage;+;chat400",
+     "chat_name": "Alice, Alice",
+     "rowid": 76,
+     "date": 1704067275.0,
+     "snippet": "Alice: g4 alice"
+    },
+    {
+     "chat_guid": "iMessage;+;chat200",
+     "chat_name": "Synthetic Crew",
+     "rowid": 72,
+     "date": 1704067271.0,
+     "snippet": "Alice: g2 alice"
+    },
+    {
+     "chat_guid": "iMessage;+;chat100",
+     "chat_name": "Alice, Bob",
+     "rowid": 67,
+     "date": 1704067266.0,
+     "snippet": "Alice: g1 alice"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 1,
+     "date": 1704067200.0,
+     "snippet": "Alice: hello from alice"
+    }
+   ]
+  },
+  "'blob only':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 3,
+     "date": 1704067202.0,
+     "snippet": "You: blob only text"
+    }
+   ]
+  },
+  "'empty column':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 4,
+     "date": 1704067203.0,
+     "snippet": "Alice: empty column, blob body"
+    }
+   ]
+  },
+  "'hello':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 1,
+     "date": 1704067200.0,
+     "snippet": "Alice: hello from alice"
+    }
+   ]
+  },
+  "'HELLO':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 1,
+     "date": 1704067200.0,
+     "snippet": "Alice: hello from alice"
+    }
+   ]
+  },
+  "'Hello From':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 1,
+     "date": 1704067200.0,
+     "snippet": "Alice: hello from alice"
+    }
+   ]
+  },
+  "'hELLo fRoM':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 1,
+     "date": 1704067200.0,
+     "snippet": "Alice: hello from alice"
+    }
+   ]
+  },
+  "'éè':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 5,
+     "date": 1704067204.0,
+     "snippet": "Alice: mutable skeleton éè 😊"
+    }
+   ]
+  },
+  "'😊':30": {
+   "results": []
+  },
+  "'NSString':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 2,
+     "date": 1704067201.0,
+     "snippet": "Alice: mentions NSString in plain text"
+    }
+   ]
+  },
+  "'kIMMessagePart':30": {
+   "results": []
+  },
+  "'streamtyped':30": {
+   "results": []
+  },
+  "'Loved':30": {
+   "results": []
+  },
+  "'Removed a':30": {
+   "results": []
+  },
+  "'Reacted':30": {
+   "results": []
+  },
+  "'example.invalid':30": {
+   "results": [
+    {
+     "chat_guid": "SMS;+;chat500",
+     "chat_name": "Bob, +15550000003",
+     "rowid": 79,
+     "date": 1704067278.0,
+     "snippet": "You: g5 me https://g5.example.invalid/x"
+    },
+    {
+     "chat_guid": "any;-;+15550000006",
+     "chat_name": "+15550000006",
+     "rowid": 66,
+     "date": 1704067265.0,
+     "snippet": "system note https://sys.example.invalid/n."
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 51,
+     "date": 1704067250.0,
+     "snippet": "You: see https://a.example.invalid/x. and https://a.example.invalid/x then (https://b.example.invalid/y); done"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 27,
+     "date": 1704067226.0,
+     "snippet": "Alice: https://only.example.invalid/path?x=1"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 23,
+     "date": 1704067222.0,
+     "snippet": "Alice: https://decoy.example.invalid/"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 22,
+     "date": 1704067221.0,
+     "snippet": "Alice: https://two.example.invalid/b"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 21,
+     "date": 1704067220.0,
+     "snippet": "You: https://photo.example.invalid/j"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 16,
+     "date": 1704067215.0,
+     "snippet": "Alice: https://site.example.invalid/page"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 15,
+     "date": 1704067214.0,
+     "snippet": "You: https://blog.example.invalid/post"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 14,
+     "date": 1704067213.0,
+     "snippet": "Alice: https://news.example.invalid/story"
+    }
+   ]
+  },
+  "'example.invalid':3": {
+   "results": [
+    {
+     "chat_guid": "SMS;+;chat500",
+     "chat_name": "Bob, +15550000003",
+     "rowid": 79,
+     "date": 1704067278.0,
+     "snippet": "You: g5 me https://g5.example.invalid/x"
+    },
+    {
+     "chat_guid": "any;-;+15550000006",
+     "chat_name": "+15550000006",
+     "rowid": 66,
+     "date": 1704067265.0,
+     "snippet": "system note https://sys.example.invalid/n."
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 51,
+     "date": 1704067250.0,
+     "snippet": "You: see https://a.example.invalid/x. and https://a.example.invalid/x then (https://b.example.invalid/y); done"
+    }
+   ]
+  },
+  "'example.invalid':1": {
+   "results": [
+    {
+     "chat_guid": "SMS;+;chat500",
+     "chat_name": "Bob, +15550000003",
+     "rowid": 79,
+     "date": 1704067278.0,
+     "snippet": "You: g5 me https://g5.example.invalid/x"
+    }
+   ]
+  },
+  "'https://':4": {
+   "results": [
+    {
+     "chat_guid": "SMS;+;chat500",
+     "chat_name": "Bob, +15550000003",
+     "rowid": 79,
+     "date": 1704067278.0,
+     "snippet": "You: g5 me https://g5.example.invalid/x"
+    },
+    {
+     "chat_guid": "any;-;+15550000006",
+     "chat_name": "+15550000006",
+     "rowid": 66,
+     "date": 1704067265.0,
+     "snippet": "system note https://sys.example.invalid/n."
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 51,
+     "date": 1704067250.0,
+     "snippet": "You: see https://a.example.invalid/x. and https://a.example.invalid/x then (https://b.example.invalid/y); done"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 27,
+     "date": 1704067226.0,
+     "snippet": "Alice: https://only.example.invalid/path?x=1"
+    }
+   ]
+  },
+  "'g1':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;+;chat100",
+     "chat_name": "Alice, Bob",
+     "rowid": 71,
+     "date": 1704067270.0,
+     "snippet": "Bob: g1 reply"
+    },
+    {
+     "chat_guid": "iMessage;+;chat100",
+     "chat_name": "Alice, Bob",
+     "rowid": 70,
+     "date": 1704067269.0,
+     "snippet": "You: g1 me"
+    },
+    {
+     "chat_guid": "iMessage;+;chat100",
+     "chat_name": "Alice, Bob",
+     "rowid": 69,
+     "date": 1704067268.0,
+     "snippet": "+15550000003: g1 carl (no join row)"
+    },
+    {
+     "chat_guid": "iMessage;+;chat100",
+     "chat_name": "Alice, Bob",
+     "rowid": 68,
+     "date": 1704067267.0,
+     "snippet": "Bob: g1 bob"
+    },
+    {
+     "chat_guid": "iMessage;+;chat100",
+     "chat_name": "Alice, Bob",
+     "rowid": 67,
+     "date": 1704067266.0,
+     "snippet": "Alice: g1 alice"
+    }
+   ]
+  },
+  "'sms':30": {
+   "results": [
+    {
+     "chat_guid": "SMS;+;chat500",
+     "chat_name": "Bob, +15550000003",
+     "rowid": 78,
+     "date": 1704067277.0,
+     "snippet": "Bob: g5 bob by sms"
+    },
+    {
+     "chat_guid": "SMS;-;+15550000003",
+     "chat_name": "+15550000003",
+     "rowid": 61,
+     "date": 1704067260.0,
+     "snippet": "You: sms out"
+    },
+    {
+     "chat_guid": "SMS;-;+15550000003",
+     "chat_name": "+15550000003",
+     "rowid": 60,
+     "date": 1704067259.0,
+     "snippet": "+15550000003: sms in"
+    },
+    {
+     "chat_guid": "SMS;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 58,
+     "date": 1704067257.0,
+     "snippet": "Alice: old sms"
+    }
+   ]
+  },
+  "'rcs':30": {
+   "results": [
+    {
+     "chat_guid": "RCS;-;+15550000002",
+     "chat_name": "Bob Brown",
+     "rowid": 63,
+     "date": 1704067262.0,
+     "snippet": "You: rcs out"
+    },
+    {
+     "chat_guid": "RCS;-;+15550000002",
+     "chat_name": "Bob Brown",
+     "rowid": 62,
+     "date": 1704067261.0,
+     "snippet": "Bob: rcs in"
+    }
+   ]
+  },
+  "'system note':30": {
+   "results": [
+    {
+     "chat_guid": "any;-;+15550000006",
+     "chat_name": "+15550000006",
+     "rowid": 66,
+     "date": 1704067265.0,
+     "snippet": "system note https://sys.example.invalid/n."
+    }
+   ]
+  },
+  "'two':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 33,
+     "date": 1704067232.0,
+     "snippet": "Alice: two files"
+    },
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 22,
+     "date": 1704067221.0,
+     "snippet": "Alice: https://two.example.invalid/b"
+    }
+   ]
+  },
+  "'  hello  ':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 1,
+     "date": 1704067200.0,
+     "snippet": "Alice: hello from alice"
+    }
+   ]
+  },
+  "'synthetic':30": {
+   "results": [
+    {
+     "chat_guid": "iMessage;-;+15550000001",
+     "chat_name": "Alice Anders",
+     "rowid": 8,
+     "date": 1704067207.0,
+     "snippet": "You: This synthetic message is deliberately longer than one hundred and twenty characters so that the reply quote has to be t…"
+    }
+   ]
+  },
+  "'a':30": {
+   "results": []
+  },
+  "' ':30": {
+   "results": []
+  },
+  "'':30": {
+   "results": []
+  },
+  "' x ':30": {
+   "results": []
+  }
+ },
+ "oversample": {
+  "newer_blobs": 5,
+  "NSString": {
+   "1": {
+    "results": []
+   },
+   "2": {
+    "results": []
+   },
+   "3": {
+    "results": [
+     {
+      "chat_guid": "iMessage;-;+15550000001",
+      "chat_name": "Alice Anders",
+      "rowid": 2,
+      "date": 1704067201.0,
+      "snippet": "Alice: mentions NSString in plain text"
+     }
+    ]
+   },
+   "4": {
+    "results": [
+     {
+      "chat_guid": "iMessage;-;+15550000001",
+      "chat_name": "Alice Anders",
+      "rowid": 2,
+      "date": 1704067201.0,
+      "snippet": "Alice: mentions NSString in plain text"
+     }
+    ]
+   },
+   "5": {
+    "results": [
+     {
+      "chat_guid": "iMessage;-;+15550000001",
+      "chat_name": "Alice Anders",
+      "rowid": 2,
+      "date": 1704067201.0,
+      "snippet": "Alice: mentions NSString in plain text"
+     }
+    ]
+   },
+   "6": {
+    "results": [
+     {
+      "chat_guid": "iMessage;-;+15550000001",
+      "chat_name": "Alice Anders",
+      "rowid": 2,
+      "date": 1704067201.0,
+      "snippet": "Alice: mentions NSString in plain text"
+     }
+    ]
+   }
+  }
+ }
+}

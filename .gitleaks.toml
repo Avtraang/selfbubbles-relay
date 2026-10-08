@@ -1,0 +1,30 @@
+# gitleaks configuration: used by the "secrets" job in .github/workflows/ci.yml,
+# which scans every commit of the repository, and for the same scan of a clone
+# before a push:
+#
+#   gitleaks git . --redact --no-banner --config .gitleaks.toml
+#
+# The scan covers the history of the clone it runs in, so run it on the history
+# that is going to be pushed.
+#
+# The default rule set applies unchanged. The one exception below silences one
+# known false positive and nothing else; a new finding means "look at it", not
+# "add another exception". Verified with gitleaks 8.30.1, the version CI pins.
+
+title = "selfbubbles-relay"
+
+[extend]
+useDefault = true
+
+# tests/test_link_enrich.py parametrises image_path() with deliberately bad
+# cache keys built on the ramp 0123456789abcdef ("0123456789abcdef.png",
+# "0123456789abcdef/../../x", ...). One of them follows "/etc/passwd" on the
+# same line, and generic-api-key reads that pair as password = value.
+# All three conditions must hold (AND): that rule, that file, and exactly that
+# value. The regex is matched against the detected secret.
+[[allowlists]]
+description = "One fake link-cache key (the 0-9a-f ramp plus .png) in the image_path tests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)tests/test_link_enrich\.py$''']
+regexes = ['''^0123456789abcdef\.png$''']

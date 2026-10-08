@@ -1,0 +1,38 @@
+{
+ "ATT-FILE-PNG": {
+  "status": 200,
+  "path": "pic.png",
+  "media_type": "image/png",
+  "filename": "pic.png"
+ },
+ "ATT-FILE-MP4": {
+  "status": 200,
+  "path": "clip.mp4",
+  "media_type": "video/mp4",
+  "filename": "clip.mp4"
+ },
+ "ATT-FILE-TXT": {
+  "status": 200,
+  "path": "notes.txt",
+  "media_type": "text/plain",
+  "filename": "notes.txt"
+ },
+ "ATT-NONAME": {
+  "status": 200,
+  "path": "noname.bin",
+  "media_type": "application/octet-stream",
+  "filename": "noname.bin"
+ },
+ "NO-SUCH-ATT": {
+  "status": 404,
+  "detail": "unknown attachment"
+ },
+ "ATT-NULL": {
+  "status": 404,
+  "detail": "file missing on disk"
+ },
+ "ATT-GONE": {
+  "status": 404,
+  "detail": "file missing on disk"
+ }
+}

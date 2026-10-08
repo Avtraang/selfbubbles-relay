@@ -1,0 +1,523 @@
+{
+ "all": {
+  "1": {
+   "body": "hello from alice",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "2": {
+   "body": "mentions NSString in plain text",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "3": {
+   "body": "blob only text",
+   "is_from_me": true,
+   "sender": null
+  },
+  "4": {
+   "body": "empty column, blob body",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "5": {
+   "body": "mutable skeleton éè 😊",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "6": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "7": {
+   "body": "nice photo",
+   "is_from_me": true,
+   "sender": null
+  },
+  "8": {
+   "body": "This synthetic message is deliberately longer than one hundred and twenty characters so that the reply quote has to be truncated by the relay code.",
+   "is_from_me": true,
+   "sender": null
+  },
+  "9": {
+   "body": "re: long",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "10": {
+   "body": "re: blob",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "11": {
+   "body": "photo caption here",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "12": {
+   "body": "re: ws",
+   "is_from_me": true,
+   "sender": null
+  },
+  "13": {
+   "body": "re: nothing",
+   "is_from_me": true,
+   "sender": null
+  },
+  "14": {
+   "body": "https://news.example.invalid/story",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "15": {
+   "body": "https://blog.example.invalid/post",
+   "is_from_me": true,
+   "sender": null
+  },
+  "16": {
+   "body": "https://site.example.invalid/page",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "17": {
+   "body": "title only",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "18": {
+   "body": "no url no title",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "19": {
+   "body": "garbage payload",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "20": {
+   "body": "payload but not a balloon",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "21": {
+   "body": "https://photo.example.invalid/j",
+   "is_from_me": true,
+   "sender": null
+  },
+  "22": {
+   "body": "https://two.example.invalid/b",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "23": {
+   "body": "https://decoy.example.invalid/",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "24": {
+   "body": "plist without objects",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "25": {
+   "body": "plist that is a list",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "26": {
+   "body": "balloon with empty payload",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "27": {
+   "body": "https://only.example.invalid/path?x=1",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "28": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "29": {
+   "body": "🎥 Video",
+   "is_from_me": true,
+   "sender": null
+  },
+  "30": {
+   "body": "📎 doc.pdf",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "31": {
+   "body": "📎 Attachment",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "32": {
+   "body": "📎 Attachment",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "33": {
+   "body": "two files",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "34": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "35": {
+   "body": "rows but flag off",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "36": {
+   "body": "Loved a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "37": {
+   "body": "Liked a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "38": {
+   "body": "Disliked a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "39": {
+   "body": "Laughed at a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "40": {
+   "body": "Emphasized a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "41": {
+   "body": "Questioned a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "42": {
+   "body": "Reacted 🔥 to “hello from alice”",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "43": {
+   "body": "Removed a reaction",
+   "is_from_me": true,
+   "sender": null
+  },
+  "44": {
+   "body": "Removed a reaction",
+   "is_from_me": true,
+   "sender": null
+  },
+  "45": {
+   "body": "Removed a reaction",
+   "is_from_me": true,
+   "sender": null
+  },
+  "46": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "47": {
+   "body": "Loved a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "48": {
+   "body": "from a satellite",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "49": {
+   "body": "service unknown",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "50": {
+   "body": "edited once",
+   "is_from_me": true,
+   "sender": null
+  },
+  "51": {
+   "body": "see https://a.example.invalid/x. and https://a.example.invalid/x then (https://b.example.invalid/y); done",
+   "is_from_me": true,
+   "sender": null
+  },
+  "52": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "53": {
+   "body": "🎥 Video",
+   "is_from_me": true,
+   "sender": "+15550000001"
+  },
+  "54": {
+   "body": "📎 notes.txt",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "55": {
+   "body": "📎 Attachment",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "56": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "57": {
+   "body": "via email",
+   "is_from_me": false,
+   "sender": "alice@example.invalid"
+  },
+  "58": {
+   "body": "old sms",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "59": {
+   "body": "now imessage",
+   "is_from_me": true,
+   "sender": null
+  },
+  "60": {
+   "body": "sms in",
+   "is_from_me": false,
+   "sender": "+15550000003"
+  },
+  "61": {
+   "body": "sms out",
+   "is_from_me": true,
+   "sender": null
+  },
+  "62": {
+   "body": "rcs in",
+   "is_from_me": false,
+   "sender": "+15550000002"
+  },
+  "63": {
+   "body": "rcs out",
+   "is_from_me": true,
+   "sender": null
+  },
+  "64": {
+   "body": "blank service",
+   "is_from_me": true,
+   "sender": null
+  },
+  "65": {
+   "body": "no service here",
+   "is_from_me": false,
+   "sender": "+15550000006"
+  },
+  "66": {
+   "body": "system note https://sys.example.invalid/n.",
+   "is_from_me": false,
+   "sender": null
+  },
+  "67": {
+   "body": "g1 alice",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "68": {
+   "body": "g1 bob",
+   "is_from_me": false,
+   "sender": "+15550000002"
+  },
+  "69": {
+   "body": "g1 carl (no join row)",
+   "is_from_me": false,
+   "sender": "+15550000003"
+  },
+  "70": {
+   "body": "g1 me",
+   "is_from_me": true,
+   "sender": null
+  },
+  "71": {
+   "body": "g1 reply",
+   "is_from_me": false,
+   "sender": "+15550000002"
+  },
+  "72": {
+   "body": "g2 alice",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "73": {
+   "body": "g2 from my other identity",
+   "is_from_me": false,
+   "sender": "+15550009999"
+  },
+  "74": {
+   "body": "g2 me",
+   "is_from_me": true,
+   "sender": null
+  },
+  "75": {
+   "body": "g3 dana",
+   "is_from_me": false,
+   "sender": "+15550000004"
+  },
+  "76": {
+   "body": "g4 alice",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "77": {
+   "body": "g4 alice by email",
+   "is_from_me": false,
+   "sender": "alice@example.invalid"
+  },
+  "78": {
+   "body": "g5 bob by sms",
+   "is_from_me": false,
+   "sender": "+15550000002"
+  },
+  "79": {
+   "body": "g5 me https://g5.example.invalid/x",
+   "is_from_me": true,
+   "sender": null
+  }
+ },
+ "attachments": {
+  "6": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "29": {
+   "body": "🎥 Video",
+   "is_from_me": true,
+   "sender": null
+  },
+  "30": {
+   "body": "📎 doc.pdf",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "31": {
+   "body": "📎 Attachment",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "32": {
+   "body": "📎 Attachment",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "33": {
+   "body": "two files",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "34": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "46": {
+   "body": "📷 Photo",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  }
+ },
+ "tapbacks": {
+  "36": {
+   "body": "Loved a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "37": {
+   "body": "Liked a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "38": {
+   "body": "Disliked a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "39": {
+   "body": "Laughed at a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "40": {
+   "body": "Emphasized a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "41": {
+   "body": "Questioned a message",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "42": {
+   "body": "Reacted 🔥 to “hello from alice”",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "43": {
+   "body": "Removed a reaction",
+   "is_from_me": true,
+   "sender": null
+  },
+  "44": {
+   "body": "Removed a reaction",
+   "is_from_me": true,
+   "sender": null
+  },
+  "45": {
+   "body": "Removed a reaction",
+   "is_from_me": true,
+   "sender": null
+  }
+ },
+ "unordered": {
+  "1": {
+   "body": "hello from alice",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  },
+  "3": {
+   "body": "blob only text",
+   "is_from_me": true,
+   "sender": null
+  },
+  "51": {
+   "body": "see https://a.example.invalid/x. and https://a.example.invalid/x then (https://b.example.invalid/y); done",
+   "is_from_me": true,
+   "sender": null
+  },
+  "77": {
+   "body": "g4 alice by email",
+   "is_from_me": false,
+   "sender": "alice@example.invalid"
+  }
+ },
+ "unknown": {
+  "1": {
+   "body": "hello from alice",
+   "is_from_me": false,
+   "sender": "+15550000001"
+  }
+ },
+ "empty": {}
+}

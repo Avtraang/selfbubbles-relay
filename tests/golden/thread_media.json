@@ -1,0 +1,218 @@
+{
+ "iMessage;-;+15550000001": {
+  "attachments": [
+   {
+    "guid": "ATT-GONE",
+    "mime_type": "image/png",
+    "name": "gone.png",
+    "url": "/attachment/ATT-GONE",
+    "date": 1704067255.0
+   },
+   {
+    "guid": "ATT-NONAME",
+    "mime_type": null,
+    "name": null,
+    "url": "/attachment/ATT-NONAME",
+    "date": 1704067254.0
+   },
+   {
+    "guid": "ATT-FILE-TXT",
+    "mime_type": "text/plain",
+    "name": "notes.txt",
+    "url": "/attachment/ATT-FILE-TXT",
+    "date": 1704067253.0
+   },
+   {
+    "guid": "ATT-FILE-MP4",
+    "mime_type": "video/mp4",
+    "name": "clip.mp4",
+    "url": "/attachment/ATT-FILE-MP4",
+    "date": 1704067252.0
+   },
+   {
+    "guid": "ATT-FILE-PNG",
+    "mime_type": "image/png",
+    "name": "pic.png",
+    "url": "/attachment/ATT-FILE-PNG",
+    "date": 1704067251.0
+   },
+   {
+    "guid": "ATT-STICKER",
+    "mime_type": "image/jpeg",
+    "name": "sticker.jpg",
+    "url": "/attachment/ATT-STICKER?f=jpg",
+    "date": 1704067245.0
+   },
+   {
+    "guid": "ATT-UNFLAGGED",
+    "mime_type": "image/png",
+    "name": "u.png",
+    "url": "/attachment/ATT-UNFLAGGED",
+    "date": 1704067234.0
+   },
+   {
+    "guid": "ATT-HEIC-FAILED",
+    "mime_type": "image/heic",
+    "name": "c.heic",
+    "url": "/attachment/ATT-HEIC-FAILED",
+    "date": 1704067233.0
+   },
+   {
+    "guid": "ATT-M1",
+    "mime_type": "image/jpeg",
+    "name": "a.jpg",
+    "url": "/attachment/ATT-M1",
+    "date": 1704067232.0
+   },
+   {
+    "guid": "ATT-M2",
+    "mime_type": "image/jpeg",
+    "name": "b.jpg",
+    "url": "/attachment/ATT-M2?f=jpg",
+    "date": 1704067232.0
+   },
+   {
+    "guid": "ATT-NULL",
+    "mime_type": null,
+    "name": null,
+    "url": "/attachment/ATT-NULL",
+    "date": 1704067230.0
+   },
+   {
+    "guid": "ATT-PDF",
+    "mime_type": "application/pdf",
+    "name": "doc.pdf",
+    "url": "/attachment/ATT-PDF",
+    "date": 1704067229.0
+   },
+   {
+    "guid": "ATT-VID",
+    "mime_type": "video/quicktime",
+    "name": "clip.mov",
+    "url": "/attachment/ATT-VID",
+    "date": 1704067228.0
+   },
+   {
+    "guid": "ATT-PNG-HIDDEN",
+    "mime_type": "image/png",
+    "name": "shot.png",
+    "url": "/attachment/ATT-PNG-HIDDEN",
+    "date": 1704067227.0
+   },
+   {
+    "guid": "ATT-HEIC-1",
+    "mime_type": "image/jpeg",
+    "name": "IMG_0001.jpg",
+    "url": "/attachment/ATT-HEIC-1?f=jpg",
+    "date": 1704067205.0
+   }
+  ],
+  "links": [
+   {
+    "url": "https://a.example.invalid/x",
+    "date": 1704067250.0,
+    "sender": "me"
+   },
+   {
+    "url": "https://b.example.invalid/y",
+    "date": 1704067250.0,
+    "sender": "me"
+   },
+   {
+    "url": "https://only.example.invalid/path?x=1",
+    "date": 1704067226.0,
+    "sender": "Alice Anders"
+   },
+   {
+    "url": "https://decoy.example.invalid/",
+    "date": 1704067222.0,
+    "sender": "Alice Anders"
+   },
+   {
+    "url": "https://two.example.invalid/b",
+    "date": 1704067221.0,
+    "sender": "Alice Anders"
+   },
+   {
+    "url": "https://photo.example.invalid/j",
+    "date": 1704067220.0,
+    "sender": "me"
+   },
+   {
+    "url": "https://site.example.invalid/page",
+    "date": 1704067215.0,
+    "sender": "Alice Anders"
+   },
+   {
+    "url": "https://blog.example.invalid/post",
+    "date": 1704067214.0,
+    "sender": "me"
+   },
+   {
+    "url": "https://news.example.invalid/story",
+    "date": 1704067213.0,
+    "sender": "Alice Anders"
+   }
+  ]
+ },
+ "iMessage;-;alice@example.invalid": {
+  "attachments": [],
+  "links": []
+ },
+ "SMS;-;+15550000001": {
+  "attachments": [],
+  "links": []
+ },
+ "SMS;-;+15550000003": {
+  "attachments": [],
+  "links": []
+ },
+ "RCS;-;+15550000002": {
+  "attachments": [],
+  "links": []
+ },
+ "iMessage;+;chat100": {
+  "attachments": [],
+  "links": []
+ },
+ "iMessage;+;chat200": {
+  "attachments": [],
+  "links": []
+ },
+ "iMessage;+;chat300": {
+  "attachments": [],
+  "links": []
+ },
+ "iMessage;+;chat400": {
+  "attachments": [],
+  "links": []
+ },
+ "SMS;+;chat500": {
+  "attachments": [],
+  "links": [
+   {
+    "url": "https://g5.example.invalid/x",
+    "date": 1704067278.0,
+    "sender": "me"
+   }
+  ]
+ },
+ "any;-;+15550000006": {
+  "attachments": [],
+  "links": [
+   {
+    "url": "https://sys.example.invalid/n",
+    "date": 1704067265.0,
+    "sender": null
+   }
+  ]
+ },
+ "iMessage;-;+15550000005": {
+  "attachments": [],
+  "links": []
+ },
+ "iMessage;-;+15550000000": {
+  "attachments": [],
+  "links": []
+ }
+}

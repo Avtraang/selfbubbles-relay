@@ -1,0 +1,22 @@
+{
+ "all": {
+  "1": "iMessage",
+  "2": "iMessage",
+  "3": "iMessage",
+  "4": "SMS",
+  "5": "RCS",
+  "6": "iMessage",
+  "7": "iMessage",
+  "8": "iMessage",
+  "9": "iMessage",
+  "10": "SMS",
+  "11": null
+ },
+ "with_unknown": {
+  "1": "iMessage"
+ },
+ "none_and_str": {
+  "2": "iMessage"
+ },
+ "empty": {}
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup question
+    url: https://github.com/Avtraang/selfbubbles-relay/discussions
+    about: "Installing the relay, the HTTPS route, BlueBubbles, Full Disk Access: ask in Discussions. Issues are for bugs and feature requests."
+  - name: Security report
+    url: https://github.com/Avtraang/selfbubbles-relay/security/policy
+    about: "Anything that could expose someone's messages: Security tab > Report a vulnerability (private), as SECURITY.md describes, never a public issue. No button there? Use the Security contact request form on this page."

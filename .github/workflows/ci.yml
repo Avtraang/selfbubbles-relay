@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        # setup-python installs the newest build it has for the runner. For
+        # 3.12 on macOS that is 3.12.10: the later 3.12 releases have no macOS
+        # build there, so that leg runs an older patch release than the Linux one.
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Test
+        # The suite builds synthetic databases under the test tmp dir; it never
+        # opens a real ~/Library/Messages/chat.db and passes on a machine without
+        # one. No .env is read and every socket is on loopback. The relay only
+        # runs on macOS; the Linux jobs check that nothing else in the code is
+        # tied to it. There the tests that need afconvert (a macOS tool) skip,
+        # and so does one doctor case that depends on how the C library reads
+        # the host "*". -rs lists every skip with its reason.
+        run: python -m pytest -q -rs tests
+      - name: Golden check
+        # Compares the relay's JSON against tests/golden/; writes nothing.
+        # Runs after a test failure too, so one run shows both results.
+        if: ${{ !cancelled() }}
+        run: python -m tests.record_golden --check
+
+  secrets:
+    name: gitleaks (full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # The MIT-licensed gitleaks binary, pinned and checked against the sha256
+      # in the release's checksums file: no licence key for any kind of account,
+      # and the same version the allowlist in .gitleaks.toml was checked with.
+      # Not gitleaks-action: it needs a licence key as soon as a repository
+      # belongs to an organisation, and on push and pull_request it scans only
+      # the new commits, not the history.
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks"
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+      - name: Scan every commit
+        # --redact keeps a finding's value out of the public job log.
+        run: gitleaks version && gitleaks git . --redact --no-banner --config .gitleaks.toml

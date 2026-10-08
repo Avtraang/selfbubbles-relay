@@ -1,0 +1,51 @@
+{
+ "one_to_one_phone": {
+  "chat_guid": "SMS;-;+15550000001",
+  "chat_name": "Alice Anders",
+  "last_rowid": 59
+ },
+ "one_to_one_email": {
+  "chat_guid": "SMS;-;+15550000001",
+  "chat_name": "Alice Anders",
+  "last_rowid": 59
+ },
+ "one_to_one_carl_sms": {
+  "chat_guid": "SMS;-;+15550000003",
+  "chat_name": "+15550000003",
+  "last_rowid": 61
+ },
+ "one_to_one_bob_rcs": {
+  "chat_guid": "RCS;-;+15550000002",
+  "chat_name": "Bob Brown",
+  "last_rowid": 64
+ },
+ "group_with_missing_join_row": {
+  "chat_guid": "iMessage;+;chat100",
+  "chat_name": "Alice, Bob",
+  "last_rowid": 71
+ },
+ "group_self_included": {
+  "chat_guid": "iMessage;+;chat200",
+  "chat_name": "Synthetic Crew",
+  "last_rowid": 74
+ },
+ "group_self_implicit": {
+  "chat_guid": "iMessage;+;chat200",
+  "chat_name": "Synthetic Crew",
+  "last_rowid": 74
+ },
+ "two_addresses_one_person": {
+  "chat_guid": "iMessage;+;chat400",
+  "chat_name": "Alice, Alice",
+  "last_rowid": 77
+ },
+ "five_people": {
+  "chat_guid": "iMessage;+;chat300",
+  "chat_name": "Alice, Alice, Bob, +15550000003…",
+  "last_rowid": 75
+ },
+ "no_match_unknown": null,
+ "no_match_group": null,
+ "only_self": null,
+ "empty": null
+}

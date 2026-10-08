@@ -1,0 +1,17 @@
+name: Security contact request
+description: Only if the Security tab has no "Report a vulnerability" button. This form carries no details.
+title: "security contact requested"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not describe the problem here: issues are public forever.**
+
+        The private route is the **Security** tab > **Report a vulnerability**. Use this form only if that button is missing, as [SECURITY.md](https://github.com/Avtraang/selfbubbles-relay/blob/main/SECURITY.md#reporting-a-vulnerability) says. Submit it as it is, and the author will set up a private channel with you.
+  - type: checkboxes
+    id: nodetails
+    attributes:
+      label: Before you submit
+      options:
+        - label: "This issue says nothing about the problem itself."
+          required: true
