@@ -403,8 +403,10 @@ THREAD_STATE_GLOBALS = ("PINS", "ARCHIVED", "AUTO_TRANSLATE", "FORCED_UNREAD", "
 def seed_relay_state(module) -> None:
     """Give the relay module the synthetic contacts (keyed with its own
     ``norm_key``), self identity and failed-HEIC guid the compat database expects."""
-    module.CONTACTS.clear()
-    module.CONTACTS.update({module.norm_key(addr): name for addr, name in SYNTHETIC_CONTACTS.items()})
+    names = {module.norm_key(addr): name for addr, name in SYNTHETIC_CONTACTS.items()}
+    # One synthetic name is one contact card: its addresses share the card's smallest key.
+    canon = {k: min(x for x, n in names.items() if n == name) for k, name in names.items()}
+    module.set_contacts(names, canon)
     module.SELF_RAW[:] = [SELF_PHONE]
     module.FAILED_HEIC.clear(); module.FAILED_HEIC.add("ATT-HEIC-FAILED")
 

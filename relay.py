@@ -488,6 +488,19 @@ from chatdb_adapter import snippet as search_snippet
 # ---------- contacts ----------
 
 CONTACTS: dict[str, str] = {}
+#: Address key -> the smallest key of the contact CARD it came from. A person is a card, not a
+#: display name: two cards that share a name are two people.
+CONTACT_CANON: dict[str, str] = {}
+#: Address key -> the card's own address in sendable form (its country code kept).
+CONTACT_ADDRS: dict[str, str] = {}
+
+#: Country calling code assumed for a phone number written without one.
+DEFAULT_COUNTRY_CODE = "".join(
+    ch for ch in os.environ.get("IMSG_DEFAULT_COUNTRY_CODE", "") if ch.isdigit()) or "1"
+
+
+class BadAddress(ValueError):
+    """A recipient that is neither an e-mail address nor a usable phone number."""
 
 
 def normalize_phone(s: str) -> str:
@@ -503,20 +516,49 @@ def norm_key(addr):
 
 
 def normalize_address(addr: str) -> str:
-    """User-typed recipient -> sendable iMessage address (US-biased for phones)."""
-    addr = addr.strip()
+    """User-typed recipient -> sendable address, or BadAddress.
+
+    An e-mail address is lower-cased. A number written with "+" keeps its own
+    country code, and so does one written with the international prefix (00,
+    or 011 where the default country is 1). A number without any is read as a
+    national number of IMSG_DEFAULT_COUNTRY_CODE (default 1): for 1, ten
+    digits or eleven starting with 1; elsewhere the digits with one leading 0
+    dropped (not for 39, where the 0 belongs to the number). Three to six
+    digits are a short code and stay as they are. Anything else is refused
+    rather than guessed at: a guess is another person's number."""
+    addr = (addr or "").strip()
     if "@" in addr:
         return addr.lower()
     digits = "".join(ch for ch in addr if ch.isdigit())
     if not digits:
-        return addr
+        raise BadAddress("not a phone number or an e-mail address")
     if addr.startswith("+"):
+        if not 7 <= len(digits) <= 15:
+            raise BadAddress("not a complete phone number")
         return "+" + digits
-    if len(digits) == 10:
-        return "+1" + digits
-    if len(digits) == 11 and digits.startswith("1"):
-        return "+" + digits
-    return "+" + digits
+    if 3 <= len(digits) <= 6:
+        return digits
+    if digits.startswith("00") and 9 <= len(digits) - 2 <= 15:
+        return "+" + digits[2:]
+    if DEFAULT_COUNTRY_CODE == "1":
+        if digits.startswith("011") and 9 <= len(digits) - 3 <= 15:
+            return "+" + digits[3:]
+        if len(digits) == 10:
+            return "+1" + digits
+        if len(digits) == 11 and digits.startswith("1"):
+            return "+" + digits
+        raise BadAddress("write the number with + and its country code")
+    national = digits[1:] if digits.startswith("0") and DEFAULT_COUNTRY_CODE != "39" else digits
+    if not 7 <= len(DEFAULT_COUNTRY_CODE + national) <= 15:
+        raise BadAddress("write the number with + and its country code")
+    return "+" + DEFAULT_COUNTRY_CODE + national
+
+
+def contact_address(key: str) -> str:
+    """Contact-map key -> the address to offer and to send to: the card's own.
+    Without one (a card whose number normalize_address refuses) the key
+    itself, which /create_chat then refuses in turn; never a rebuilt number."""
+    return CONTACT_ADDRS.get(key) or key
 
 
 def load_contacts():
@@ -530,7 +572,7 @@ def load_contacts():
     except EngineError as e:
         print(f"[contacts] {e.detail}")
         return
-    m = {}
+    m, canon, sendable = {}, {}, {}
     for c in data:
         name = (c.get("displayName")
                 or " ".join(x for x in [c.get("firstName"), c.get("lastName")] if x).strip()
@@ -539,14 +581,21 @@ def load_contacts():
                 or "")
         if not name:
             continue
+        card = []
         for group in ("phoneNumbers", "emails"):
             for item in (c.get(group) or []):
                 addr = item.get("address") if isinstance(item, dict) else item
-                k = norm_key(addr)
+                k = norm_key(addr) if isinstance(addr, str) else None
                 if k:
                     m[k] = name
-    CONTACTS.clear()
-    CONTACTS.update(m)
+                    card.append(k)
+                    try:
+                        sendable[k] = normalize_address(addr.split("X-SHARED")[0])
+                    except BadAddress:
+                        sendable.pop(k, None)
+        for k in card:
+            canon[k] = min(card)
+    set_contacts(m, canon, sendable)
     print(f"[contacts] {len(data)} contacts from BlueBubbles -> {len(m)} phone/email keys")
 
 
@@ -606,11 +655,25 @@ def group_title(conn, chat_rowid, display_name):
     return ", ".join(names[:4]) + ("…" if len(names) > 4 else "")
 
 
+def set_contacts(names: dict, canon: dict | None = None, sendable: dict | None = None) -> None:
+    """Replace the contact map and its two companions together."""
+    CONTACTS.clear()
+    CONTACTS.update(names)
+    CONTACT_CANON.clear()
+    CONTACT_CANON.update(canon or {})
+    CONTACT_ADDRS.clear()
+    CONTACT_ADDRS.update(sendable or {})
+
+
 def person_key(addr):
-    """Collapse a handle/address to a person: the contact name when known,
-    else its normalized key. Lets phone+email of the same human compare equal."""
+    """Collapse a handle/address to a person: the contact card it is on when
+    known, else its normalized key. The phone and the e-mail on ONE card
+    compare equal; two cards never do, whatever names they carry. An address
+    with no key at all (no digits, no "@") is only ever equal to itself."""
     k = norm_key(addr)
-    return CONTACTS.get(k) or k
+    if not k:
+        return "raw:" + (addr or "").strip().lower()
+    return (CONTACT_CANON.get(k) or k) if k in CONTACTS else k
 
 
 chatdb_adapter.configure(chatdb_path=CHATDB, resolve=resolve, att_public=att_public,
@@ -1197,9 +1260,20 @@ ASSIST_JOINERS = ("that says", "with the message", "to say", "saying", "that")
 YES_WORDS = ("yes", "yeah", "yep", "yup", "sure", "ok", "okay", "confirm",
              "send it", "send", "do it", "correct", "right")
 NO_WORDS = ("no", "nope", "cancel", "stop", "nevermind", "never mind", "abort")
+# A refusal anywhere in the answer. squash() turns "don't" into "don t"; a bare
+# "don" is not listed, because a contact can be called Don.
+NEGATIONS = ("not", "don t", "dont", "do not", "never", "wrong", "incorrect", "wait",
+             "neither", "none", "nobody", "nothing")
+
+
+def _says(ans: str, words) -> bool:
+    """Whole words and phrases only: "correct" is not in "incorrect"."""
+    padded = f" {ans} "
+    return any(f" {w} " in padded for w in words)
 
 PENDING: dict = {}
 PENDING_TTL = 180
+NAMESAKES_SPEAK = "You have more than one contact called {}. Send that one from the app."
 
 CONFIDENT_SCORE = 0.80   # accept outright
 CONFIDENT_LEAD = 0.06    # ...if it also beats the runner-up by this much
@@ -1244,11 +1318,20 @@ def name_index():
     """lowercase name -> (display name, [addresses]) from the contact map."""
     idx = {}
     for key, name in CONTACTS.items():
-        addr = key if "@" in key else ("+1" + key if len(key) == 10 else "+" + key)
+        addr = contact_address(key)
         entry = idx.setdefault(name.lower(), (name, []))
         if addr not in entry[1]:
             entry[1].append(addr)
     return idx
+
+
+def namesake_names() -> set:
+    """Lower-cased contact names that sit on more than one card: two people
+    the voice path cannot tell apart, so it sends to neither."""
+    cards: dict[str, set] = {}
+    for key, name in CONTACTS.items():
+        cards.setdefault(name.lower(), set()).add(CONTACT_CANON.get(key) or key)
+    return {name for name, on in cards.items() if len(on) > 1}
 
 
 def preferred_address(addrs):
@@ -1297,7 +1380,10 @@ def resolve_assistant(q: str):
     m = re.match(r"^([\d\s\-\(\)\+\.]{7,})\s+(\S.*)$", s)
     if m and sum(c.isdigit() for c in m.group(1)) >= 7:
         num = m.group(1).strip()
-        return "confident", [(1.0, num, [normalize_address(num)])], m.group(2).strip()
+        try:
+            return "confident", [(1.0, num, [normalize_address(num)])], m.group(2).strip()
+        except BadAddress:
+            return "no_recipient", [], ""
 
     idx = name_index()
     recency = contact_recency()
@@ -1319,6 +1405,9 @@ def resolve_assistant(q: str):
         key=lambda c: (round(c[0], 2), recency.get(c[1], 0)), reverse=True,
     )
     top = ranked[0]
+    shared = namesake_names()
+    if top[1].lower() in shared and top[0] >= SUGGEST_SCORE:
+        return "namesakes", [(top[0], top[1], top[2])], top[3]
     if not top[3]:
         return "no_message", [(top[0], top[1], top[2])], ""
 
@@ -1327,7 +1416,8 @@ def resolve_assistant(q: str):
     if top[0] >= CONFIDENT_SCORE and (exact or top[0] - second >= CONFIDENT_LEAD):
         return "confident", [(top[0], top[1], top[2])], top[3]
     if top[0] >= SUGGEST_SCORE:
-        cands = [(sc, d, a) for sc, d, a, _ in ranked if sc >= SUGGEST_SCORE][:3]
+        cands = [(sc, d, a) for sc, d, a, _ in ranked
+                 if sc >= SUGGEST_SCORE and d.lower() not in shared][:3]
         return "suggest", cands, top[3]
     return "not_found", [], top[3]
 
@@ -1360,6 +1450,8 @@ async def assistant_prepare(request: Request):
     if status == "no_recipient" or status == "not_found":
         return {"ok": False, "status": "not_found",
                 "speak": "I couldn't tell who to send that to."}
+    if status == "namesakes":
+        return {"ok": False, "status": "not_found", "speak": NAMESAKES_SPEAK.format(cands[0][1])}
     if status == "no_message":
         return {"ok": False, "status": "no_message",
                 "speak": f"What should I send to {cands[0][1]}?"}
@@ -1395,8 +1487,12 @@ async def assistant_deliver(p: dict, answer: str) -> dict:
     confirmation and a 'which one did you mean' suggestion round. Shared by the
     JSON and plain-text endpoints."""
     ans = squash(answer)
-    if any(ans == w or ans.startswith(w + " ") for w in NO_WORDS):
+    # Fail closed: an answer with nothing understood in it (empty, digits, another
+    # script) and a refusal anywhere in the answer both cancel. Only a yes that
+    # stands as a word of its own sends.
+    if not ans or _says(ans, NO_WORDS + NEGATIONS):
         return {"ok": False, "status": "cancelled", "speak": "Cancelled."}
+    yes = _says(ans, YES_WORDS)
 
     if p["kind"] == "choose":
         pick = None
@@ -1405,14 +1501,14 @@ async def assistant_deliver(p: dict, answer: str) -> dict:
                             reverse=True, key=lambda x: x[0])
             if scored and scored[0][0] >= 0.55:
                 pick = scored[0][1]
-        if pick is None and (not ans or any(w in ans for w in YES_WORDS)):
+        if pick is None and yes and len(p["candidates"]) == 1:
             pick = p["candidates"][0]
         if pick is None:
             return {"ok": False, "status": "cancelled",
                     "speak": "I didn't catch which one. Cancelled."}
         _, display, addrs = pick
     else:
-        if ans and not any(w in ans for w in YES_WORDS):
+        if not yes:
             return {"ok": False, "status": "cancelled", "speak": "Cancelled."}
         display, addrs = p["name"], p["addresses"]
 
@@ -1476,6 +1572,8 @@ async def v_prepare(request: Request):
     LAST_PENDING.clear()
     if status in ("no_recipient", "not_found"):
         return PlainTextResponse("I couldn't tell who to send that to.")
+    if status == "namesakes":
+        return PlainTextResponse(NAMESAKES_SPEAK.format(cands[0][1]))
     if status == "no_message":
         return PlainTextResponse(f"What should I send to {cands[0][1]}?")
 
@@ -1588,7 +1686,7 @@ def contacts_search(q: str = ""):
     for key, name in CONTACTS.items():
         if q not in name.lower() and q not in key:
             continue
-        addr = key if "@" in key else ("+1" + key if len(key) == 10 else "+" + key)
+        addr = contact_address(key)
         k = (name.lower(), addr)
         if k in seen:
             continue
@@ -2169,7 +2267,10 @@ class MatchChatReq(BaseModel):
 def match_chat(req: MatchChatReq):
     """Does an existing chat exactly match this recipient set? Drives the
     compose screen's inline history."""
-    addrs = [normalize_address(a) for a in req.addresses if a.strip()]
+    try:
+        addrs = [normalize_address(a) for a in req.addresses if a.strip()]
+    except BadAddress:
+        return {"found": False}
     if not addrs:
         return {"found": False}
     conn = db()
@@ -2190,7 +2291,10 @@ async def create_chat(req: CreateChatReq):
     """Start a conversation. Any recipient set (1:1 or group) that already has
     a chat gets the message sent into it; only genuinely new sets go through
     BlueBubbles' chat-creation endpoint (Private API handles group creation)."""
-    addrs = [normalize_address(a) for a in req.addresses if a.strip()]
+    try:
+        addrs = [normalize_address(a) for a in req.addresses if a.strip()]
+    except BadAddress as e:
+        raise HTTPException(400, f"a recipient is {e}")
     if not addrs or not req.text.strip():
         raise HTTPException(400, "addresses and text required")
 

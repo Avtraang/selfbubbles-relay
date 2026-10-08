@@ -492,6 +492,7 @@ To look at the relay and the app without your own conversations, [`tools/make_de
 
 ## Known limits
 
+- **Phone numbers without a country code are read as North American** unless `IMSG_DEFAULT_COUNTRY_CODE` says otherwise (`.env.example`). A number the relay would have to guess at (seven digits, a national number of another country) is refused, not sent: write it with `+` and its country code. Contacts keep the number on their card. One gap remains: two numbers that end in the same ten digits (one North American, one not) are still treated as the same person when an existing chat is looked up.
 - **Apple's database, Apple's schema.** `chat.db` is undocumented and changes between macOS releases (macOS 27 dropped and reordered columns). `imessage-chatdb` reads by column name and is tested against several schema profiles, but a future change can still break reads until the library catches up.
 - **Private API fragility.** Tapbacks, replies, new chats, Undo Send and FaceTime depend on BlueBubbles' Private API helper, which depends on SIP being off and has broken on macOS point updates. AppleScript keeps text and files moving in the meantime.
 - **No attachments into Google Messages threads**: the Beeper engine has no attachment capability, so `/send_attachment` to a `bp:` chat is an honest 501.
