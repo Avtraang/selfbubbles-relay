@@ -908,15 +908,45 @@ def test_the_verdict_on_an_edit(r, db):
     assert verdict(later(date_edited=before.date_edited, text="other")) is None
 
 
+class SteppedClock:
+    """The relay's ``time`` for one test: ``monotonic`` and ``sleep`` on a
+    clock that only ``sleep`` moves; everything else is the real module's.
+    Readings that are CHANGE_CONFIRM_INTERVAL apart are then exactly that far
+    apart, however long the machine takes over each."""
+
+    def __init__(self) -> None:
+        self.now, self.sleeps = 1000.0, []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+    def __getattr__(self, name: str):
+        return getattr(time, name)
+
+
 def test_a_row_on_its_way_to_the_wanted_text_is_waited_for(r, db, monkeypatch):
     """DIFFERS is only the answer when the row has held the other text for
-    CHANGE_SETTLE_SECONDS; a CONFIRMED reading inside that time wins."""
+    CHANGE_SETTLE_SECONDS; a CONFIRMED reading inside that time wins.
+
+    On a clock of its own. On the real one the first case needed its three
+    readings inside the fixture's 0.06 s: a machine that takes longer over two
+    of them (the macOS CI runners did) has by then seen the other text for the
+    whole settle time and answers DIFFERS, which is the right answer to what
+    it saw and not what this test is about."""
+    clock = SteppedClock()
+    monkeypatch.setattr(r, "time", clock)
+    assert (r.CHANGE_SETTLE_SECONDS, r.CHANGE_CONFIRM_INTERVAL) == (0.06, 0.02)      # the db fixture's
     answers = iter([r.DIFFERS, r.DIFFERS, r.CONFIRMED])
     assert r._await_change(CHAT, db.guids["fresh"], lambda now: next(answers), 5) == r.CONFIRMED
+    assert clock.sleeps == [0.02, 0.02]                              # the third reading, 0.04 s in: inside 0.06
     monkeypatch.setattr(r, "CHANGE_SETTLE_SECONDS", 0.05)
-    started = time.monotonic()
+    started = clock.monotonic()
     assert r._await_change(CHAT, db.guids["fresh"], lambda now: r.DIFFERS, 5) == r.DIFFERS
-    assert time.monotonic() - started < 2                            # not the whole five seconds
+    assert 0.05 <= clock.monotonic() - started < 2                   # held for the settle time, not the whole five seconds
     assert r._await_change(CHAT, db.guids["fresh"], lambda now: None, 0.1) is None
     assert r._await_change(CHAT, guid_for("nosuchmessage"), lambda now: r.CONFIRMED, 0.1) is None
 
@@ -1103,9 +1133,25 @@ def test_edit_made_by_a_run_that_then_failed_is_answered_as_done(db, bb, fake_cl
 
 
 def test_edit_made_by_a_run_that_then_hung_is_answered_as_done(r, db, fake_cli, client, capsys, monkeypatch):
+    """The engine's time limit is counted here from the moment the fake has
+    written its edit, not from its start. Counted from the start it is a race
+    against how long a new Python takes to come up, and a loaded machine (a
+    CI runner) loses it: the limit passes before the edit is made, and the
+    right answer to that is the 502 of the test above, not this one."""
     fake_cli.configure(then="sleep", seconds=30)
+
+    class LimitFromTheEdit(cli.subprocess.Popen):
+        def wait(self, timeout=None):
+            if timeout is not None:                         # the engine's wait; the one after kill() has none
+                give_up = time.monotonic() + 60
+                while (not db.row("fresh")["date_edited"] and self.poll() is None
+                       and time.monotonic() < give_up):
+                    time.sleep(0.01)
+            return super().wait(timeout=timeout)
+
+    monkeypatch.setattr(cli.subprocess, "Popen", LimitFromTheEdit)
     real = r.ImessageCliEngine
-    monkeypatch.setattr(r, "ImessageCliEngine", lambda binary, data_dir: real(binary, data_dir, timeout=0.6))
+    monkeypatch.setattr(r, "ImessageCliEngine", lambda binary, data_dir: real(binary, data_dir, timeout=0.3))
     resp = _edit(client, CHAT, db.guids["fresh"])
     assert (resp.status_code, resp.json()) == (200, {"ok": True, "via": "imessage-cli"})
     assert capsys.readouterr().out.splitlines() == ["[edit] imessage-cli failed (imessage-cli timed out)",
