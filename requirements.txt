@@ -1,4 +1,4 @@
-# imsg-relay runtime dependencies, pinned from the author's venv (Python 3.14.7, macOS).
+# SelfBubbles relay: runtime dependencies, pinned from the author's venv (Python 3.14.7, macOS).
 # Regenerate after an upgrade: venv/bin/pip freeze (replace the editable imessage-chatdb
 # line with the PyPI pin below). Includes the test runner (pytest) and the optional
 # integrations the relay can run without (firebase-admin, python-dotenv, pillow).

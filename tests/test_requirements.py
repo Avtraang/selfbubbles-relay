@@ -54,6 +54,6 @@ def test_chatdb_pin_tracks_the_library_the_relay_is_developed_against():
 
 def test_requirements_header_says_how_it_was_made_and_names_no_editable_install():
     lines = REQUIREMENTS.read_text(encoding="utf-8").splitlines()
-    assert lines[0].startswith("# imsg-relay runtime dependencies, pinned from")
+    assert lines[0].startswith("# SelfBubbles relay: runtime dependencies, pinned from")
     assert all(not l.startswith(("-e", "file:", "git+")) and "@ " not in l for l in lines), \
         "requirements.txt must install from PyPI only"

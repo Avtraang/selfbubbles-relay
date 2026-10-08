@@ -1,5 +1,7 @@
 # SelfBubbles relay
 
+[![CI](https://github.com/Avtraang/selfbubbles-relay/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Avtraang/selfbubbles-relay/actions/workflows/ci.yml)
+
 The Mac-side half of [SelfBubbles](https://github.com/Avtraang/selfbubbles): a small FastAPI service that runs on a Mac signed into Messages, reads the Messages database through [imessage-chatdb](https://github.com/Avtraang/imessage-chatdb), sends through a chain of engines (BlueBubbles Private API, Messages.app over AppleScript, Beeper Desktop for Google Messages), pushes new messages to the Android app over WebSocket and FCM, and serves attachments, thumbnails and link previews. Optional extras: Google Messages threads merged into the same inbox, a FaceTime relay, a Home Assistant map, translation and a voice-assistant endpoint.
 
 SelfBubbles is an independent, personal project. It is not affiliated with, endorsed by or supported by BlueBubbles, Beeper, Apple, Google or Cloudflare. It can use the BlueBubbles server's HTTP API as one optional sending engine and Beeper Desktop for Google Messages. iMessage, FaceTime and Messages are trademarks of Apple Inc.; Google Messages is a trademark of Google LLC.
