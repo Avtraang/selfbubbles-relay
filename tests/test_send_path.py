@@ -382,7 +382,9 @@ def test_send_attachment_falls_back_to_applescript_when_bb_answers_400_or_more(
 
 
 def test_send_attachment_falls_back_to_applescript_when_bb_raises(r, bb, osa, client):
-    bb.answers = [httpx.ReadTimeout("synthetic timeout")]
+    # A failure before the request can have arrived. One after it (a read
+    # timeout) must NOT fall back: tests/test_send_once.py.
+    bb.answers = [httpx.ConnectTimeout("synthetic connect timeout")]
     osa.results = [True]
     resp = client.post("/send_attachment", data={"chat_guid": CHAT}, files=_attachment(),
                        headers=AUTH)

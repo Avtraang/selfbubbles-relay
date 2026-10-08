@@ -566,12 +566,12 @@ def load_contacts():
     if bb is None:
         print("[contacts] BB_PASSWORD not set in the relay's env — "
               "names won't resolve; sends go out over AppleScript. Set BB_PASSWORD and restart the relay.")
-        return
+        return True          # nothing to retry
     try:
         data = bb.contacts()
     except EngineError as e:
         print(f"[contacts] {e.detail}")
-        return
+        return False         # not loaded: the caller tries again soon
     m, canon, sendable = {}, {}, {}
     for c in data:
         name = (c.get("displayName")
@@ -596,6 +596,7 @@ def load_contacts():
         for k in card:
             canon[k] = min(card)
     set_contacts(m, canon, sendable)
+    return True
     print(f"[contacts] {len(data)} contacts from BlueBubbles -> {len(m)} phone/email keys")
 
 
@@ -776,16 +777,24 @@ def fetch_threads(limit=200):
 
 # ---------- state ----------
 
-def load_state() -> dict:
+def _read_state() -> tuple[dict, bool]:
+    """(state, damaged): damaged when a state file exists and neither it nor
+    its backup can be read as a state."""
+    seen = False
     for path in (STATE_PATH, STATE_PATH.with_suffix(".bak")):
         if path.exists():
+            seen = True
             try:
                 data = json.loads(path.read_text())
                 if isinstance(data, dict):
-                    return data
+                    return data, False
             except Exception:
                 continue   # try the backup before giving up
-    return {}
+    return {}, seen
+
+
+def load_state() -> dict:
+    return _read_state()[0]
 
 
 _state_lock = threading.Lock()
@@ -795,16 +804,33 @@ def save_state(**updates):
     # Serialized + atomic: a partial/concurrent write can't corrupt the file
     # and wipe pins/archives (which is exactly what happened before).
     with _state_lock:
-        st = load_state()
+        st, damaged = _read_state()
+        bak = STATE_PATH.with_suffix(".bak")
+        if damaged:
+            # Neither file is a state. Writing now would replace both with an
+            # almost empty one in silence: keep what is there under another
+            # name and say so, once.
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            for path in (STATE_PATH, bak):
+                with contextlib.suppress(Exception):
+                    if path.exists():
+                        path.replace(path.with_name(f"{path.name}.damaged-{stamp}"))
+            print(f"[state] {STATE_PATH.name} and its backup were unreadable: kept as *.damaged-{stamp}, "
+                  "starting from an empty state (pins, read marks and push registrations start over)")
         st.update(updates)
         blob = json.dumps(st)
-        if STATE_PATH.exists():
-            try:
-                STATE_PATH.replace(STATE_PATH.with_suffix(".bak"))
-            except Exception:
-                pass
         tmp = STATE_PATH.with_suffix(".tmp")
-        tmp.write_text(blob)
+        with open(tmp, "w") as f:
+            f.write(blob)
+            f.flush()
+            os.fsync(f.fileno())
+        if STATE_PATH.exists():
+            # The backup is a copy: the live file is never absent, not even
+            # between two system calls.
+            with contextlib.suppress(Exception):
+                copy = bak.with_suffix(".bak.tmp")
+                shutil.copyfile(STATE_PATH, copy)
+                copy.replace(bak)
         tmp.replace(STATE_PATH)   # atomic on POSIX
 
 
@@ -884,6 +910,16 @@ def attachment_label(atts):
     return "\U0001F4CE Attachment"
 
 
+def push_group_flag(msg: dict) -> str | None:
+    """"1" / "0" for the push's is_group, so the app does not have to guess a
+    group from its title (a group whose title is not cached yet must not look
+    like a one-to-one chat). None for a Google Messages row: its flag is not
+    reliable yet, and the app then judges by the title as before."""
+    if str(msg.get("chat_guid") or "").startswith("bp:"):
+        return None
+    return "1" if msg.get("is_group") else "0"
+
+
 def send_push(msg: dict):
     if not FCM_READY:
         return
@@ -914,6 +950,9 @@ def send_push(msg: dict):
         # Stable id for the app's own dedup (gmessages rows all have rowid 0).
         "guid": str(msg.get("guid") or ""),
     }
+    group = push_group_flag(msg)
+    if group is not None:
+        data["is_group"] = group
     # First image rides along so the notification can show the actual picture.
     img = next((a for a in (msg.get("attachments") or [])
                 if (a.get("mime_type") or "").startswith("image/") and a.get("url")), None)
@@ -1113,11 +1152,20 @@ async def poll_loop():
         edit_mark = await asyncio.to_thread(max_date_edited)
         save_state(last_edit=edit_mark)
         print(f"[poll] initialized edit mark at {edit_mark}")
-    last_contacts = 0.0
+    next_contacts = 0.0
     while True:
+        # Contacts first and on their own: whatever goes wrong here, the
+        # database is still read below. A load that failed is tried again
+        # soon, not in six hours.
+        if time.time() >= next_contacts:
+            try:
+                loaded = await asyncio.to_thread(load_contacts)
+            except Exception as e:
+                loaded = False
+                print(f"[contacts] refresh failed: {type(e).__name__}")
+            next_contacts = time.time() + (CONTACT_RETRY_SECONDS if loaded is False
+                                           else CONTACT_REFRESH_SECONDS)
         try:
-            if time.time() - last_contacts > CONTACT_REFRESH_SECONDS:
-                await asyncio.to_thread(load_contacts); last_contacts = time.time()
             new = await asyncio.to_thread(fetch_new, cursor)
             if new:
                 link_need = await asyncio.to_thread(enrich_links, new)
@@ -1159,6 +1207,48 @@ async def poll_loop():
         await asyncio.sleep(POLL_SECONDS)
 
 
+#: Background loops, held so they are not garbage-collected.
+_BACKGROUND: set = set()
+LOOP_RESTART_SECONDS = 5.0
+CONTACT_RETRY_SECONDS = 300.0
+
+
+async def _supervised(name: str, start) -> None:
+    """Run a background loop for the life of the process. If it ever ends or
+    raises (a log line that cannot be written is enough), say so when that is
+    possible and start it again after a pause. Without this, one escaped
+    exception ends receiving for good while the relay goes on answering."""
+    while True:
+        try:
+            await start()
+            why = "ended"
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            why = f"stopped ({type(e).__name__})"
+        with contextlib.suppress(Exception):
+            print(f"[{name}] {why} — starting it again in {LOOP_RESTART_SECONDS:g} s")
+        await asyncio.sleep(LOOP_RESTART_SECONDS)
+
+
+def _spawn(name: str, start) -> None:
+    task = asyncio.create_task(_supervised(name, start))
+    _BACKGROUND.add(task)
+    task.add_done_callback(_BACKGROUND.discard)
+
+
+def _tighten_files() -> None:
+    """What the relay writes from here on is for its own account only, and
+    what it wrote before is brought in line: the state holds push
+    registrations, the caches hold attachments."""
+    os.umask(0o077)
+    for path, mode in ((STATE_PATH, 0o600), (STATE_PATH.with_suffix(".bak"), 0o600),
+                       (HEIC_CACHE, 0o700), (AUDIO_CACHE, 0o700), (ICON_CACHE, 0o700)):
+        with contextlib.suppress(Exception):
+            if path.exists():
+                os.chmod(path, mode)
+
+
 async def _on_beeper_message(msg: dict, is_new: bool = True):
     """A live Google Messages message: broadcast to the app and push, mirroring
     exactly what the chat.db poll loop does for iMessage. A message the bridge
@@ -1175,14 +1265,15 @@ async def _on_beeper_message(msg: dict, is_new: bool = True):
 
 @app.on_event("startup")
 async def _startup():
+    _tighten_files()
     init_fcm()
     # Prime the title cache so the first push after a reboot has proper names.
     for _t in fetch_threads(200):
         CHAT_TITLES.setdefault(_t["chat_guid"], _t["chat_name"])
-    asyncio.create_task(poll_loop())
+    _spawn("poll", poll_loop)
     if beeper.enabled():
         print("[beeper] enabled — watching Google Messages")
-        asyncio.create_task(beeper.watch(_on_beeper_message))
+        _spawn("beeper", lambda: beeper.watch(_on_beeper_message))
     else:
         print("[beeper] disabled (no BEEPER_TOKEN)")
 
@@ -1905,7 +1996,7 @@ async def translate(req: TranslateReq):
 
     if _mostly_latin(text):
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=20, trust_env=False) as client:
                 r = await client.post(f"{MARIAN_URL}/translate",
                                       json={"text": text})
             if r.status_code < 400:
@@ -1935,7 +2026,7 @@ async def translate(req: TranslateReq):
         "options": {"temperature": 0.2},
     }
     try:
-        async with httpx.AsyncClient(timeout=90) as client:
+        async with httpx.AsyncClient(timeout=90, trust_env=False) as client:
             r = await client.post(f"{OLLAMA_URL}/api/generate", json=payload)
     except Exception as e:
         raise HTTPException(502, f"ollama unreachable: {e}")

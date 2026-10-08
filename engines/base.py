@@ -101,6 +101,10 @@ class SendResult:
     payload: Any = None
     status: int | None = None
     body: str | None = None
+    #: The engine was handed the whole request and gave no answer: it may have
+    #: delivered. The chain stops there instead of sending again through the
+    #: next engine.
+    uncertain: bool = False
 
 
 class EngineError(Exception):

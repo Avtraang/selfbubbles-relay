@@ -83,6 +83,11 @@ IMESSAGE_EXTRAS = (Capability.REACT, Capability.REPLY, Capability.CREATE_CHAT,
 IMESSAGE_PROBE_GUID = "iMessage;-;"
 
 
+#: The 502 for a send whose engine took the request and gave no answer.
+MAYBE_SENT = ("the send engine gave no answer: the message may have been sent. "
+              "Check the chat before sending again.")
+
+
 class DeliveryError(Exception):
     """``deliver`` could not get the operation done; ``status`` is the HTTP
     status the relay answers with (501 nothing capable, 502 all failed, or an
@@ -226,6 +231,10 @@ async def deliver(chain: list[SendEngine], cap: Capability, chat_guid: str | Non
             if failures:
                 log(f"[send] delivered via {engine.name} -> {chat_guid}")
             return res
+        if res.uncertain:
+            # It may be on its way: a second engine would deliver it twice.
+            log(f"[send] {engine.name} gave no answer ({_log_detail(res)}) — not trying another engine")
+            raise DeliveryError(502, MAYBE_SENT)
         failures.append((engine, res))
         nxt = eligible[i + 1].name if i + 1 < len(eligible) else None
         log(f"[send] {engine.name} failed ({_log_detail(res)})"

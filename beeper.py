@@ -305,7 +305,7 @@ def msg_to_dict(m: dict, chat_guid: str, is_group: bool) -> dict:
 async def fetch_threads(limit: int = 100) -> list[dict]:
     if not _enabled:
         return []
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(trust_env=False) as client:
         try:
             data = await _get(client, "/v1/chats", limit=limit)
         except Exception as e:
@@ -334,7 +334,7 @@ async def fetch_messages(chat_guid: str, limit: int = 50,
     if cursor:
         params["cursor"] = cursor
         params["direction"] = "before"
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(trust_env=False) as client:
         try:
             data = await _get(client, f"/v1/chats/{cid}/messages", **params)
         except Exception as e:
@@ -353,7 +353,7 @@ async def asset_url(src: str) -> tuple[bytes, str] | None:
     """Download a Beeper asset (mxc://…/file://…) to bytes for the phone."""
     if not _enabled or not src:
         return None
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(trust_env=False) as client:
         try:
             r = await client.get(
                 f"{BEEPER_URL}/v1/assets/serve", headers=_headers(),
@@ -379,7 +379,7 @@ async def send(chat_guid: str, text: str, reply_to: str | None = None) -> bool:
     body = {"text": text}
     if reply_to:
         body["replyToMessageID"] = reply_to
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(trust_env=False) as client:
         try:
             r = await client.post(
                 f"{BEEPER_URL}/v1/chats/{cid}/messages",
@@ -401,7 +401,7 @@ async def mark_read(chat_guid: str) -> bool:
     cid = chat_path_id(chat_guid)
     if cid is None:
         return False
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(trust_env=False) as client:
         try:
             r = await client.post(f"{BEEPER_URL}/v1/chats/{cid}/read",
                                   headers=_headers(), timeout=15)

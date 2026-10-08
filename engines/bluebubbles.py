@@ -28,6 +28,18 @@ def _failed(err: str) -> str:
     return f"BlueBubbles failed ({err})"
 
 
+#: Failures that happen before BlueBubbles can have received the request.
+_NOT_REACHED = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout,
+                httpx.UnsupportedProtocol, httpx.InvalidURL)
+
+
+def _no_answer(e: Exception, via: str) -> SendResult:
+    """A send that raised instead of answering. Unless it failed before the
+    request could arrive, BlueBubbles may hold the message and still pass it
+    to Messages: the outcome is uncertain, and nobody may send it again."""
+    return SendResult(False, via, _failed(str(e)), uncertain=not isinstance(e, _NOT_REACHED))
+
+
 #: Frozen: the detail of the 502 the relay's ``/ft_*`` routes answer when the
 #: BlueBubbles server could not be reached at all (refused, timed out, ...).
 UNREACHABLE = "BlueBubbles unreachable"
@@ -164,7 +176,9 @@ class BlueBubblesEngine:
 
     # -- transport ------------------------------------------------------------
     def _client_kw(self, timeout: Any) -> dict:
-        kw: dict = {"timeout": timeout}
+        # trust_env off: BlueBubbles is a local service, and a system or
+        # environment proxy must never be handed its password and the messages.
+        kw: dict = {"timeout": timeout, "trust_env": False}
         if self._transport is not None:
             kw["transport"] = self._transport
         return kw
@@ -203,7 +217,7 @@ class BlueBubblesEngine:
         try:
             r = await self._post("/api/v1/message/text", timeout=15, json=payload)
         except Exception as e:
-            return SendResult(False, self.via, _failed(str(e)))
+            return _no_answer(e, self.via)
         if r.status_code < 400:
             # A 2xx means BlueBubbles accepted the message; a body that is not
             # JSON must not read as a failure, or the chain would fall through
@@ -230,7 +244,7 @@ class BlueBubblesEngine:
                                  timeout=httpx.Timeout(300.0, connect=10.0),
                                  data=data, files=files)
         except Exception as e:
-            return SendResult(False, self.via, _failed(str(e)))
+            return _no_answer(e, self.via)
         if r.status_code < 400:
             return SendResult(True, self.via)
         return SendResult(False, self.via, _failed(f"HTTP {r.status_code}: {r.text[:200]}"),
