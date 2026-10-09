@@ -189,7 +189,10 @@ def test_a_missing_state_file_is_a_first_run_not_damage(r, relay_module, capsys)
     ({"chat_guid": "iMessage;+;chat123", "is_group": True}, "1"),
     ({"chat_guid": "iMessage;-;+15550000001", "is_group": False}, "0"),
     ({"chat_guid": "any;-;+15550000001"}, "0"),
-    ({"chat_guid": "bp:!room:example.invalid", "is_group": False}, None),
-    ({"chat_guid": "bp:!room:example.invalid", "is_group": True}, None)])
-def test_push_group_flag(r, msg, flag):
+    ({"chat_guid": "bp:known-group", "is_group": False}, "1"),      # Beeper's listing decides, not the row
+    ({"chat_guid": "bp:known-direct", "is_group": True}, "0"),
+    ({"chat_guid": "bp:never-listed", "is_group": False}, "1")])   # not known to be one-to-one: not shown as one
+def test_push_group_flag(r, monkeypatch, msg, flag):
+    monkeypatch.setattr(r.beeper, "_chat_meta", {"bp:known-group": ("Cake Committee", True),
+                                                 "bp:known-direct": ("Bob Brown", False)})
     assert r.push_group_flag(msg) == flag

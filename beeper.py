@@ -219,6 +219,16 @@ def gm_labels(c: dict) -> dict:
 
 # ---------- normalisation into the app's shared shapes ----------
 
+#: Chat guid -> (title, is a group), as Beeper's chat listing last gave them.
+#: For a group without a title of its own the title is its members' names.
+_chat_meta: dict[str, tuple[str, bool]] = {}
+
+
+def chat_meta(chat_guid: str) -> tuple[str, bool] | None:
+    """What the chat listing said about this chat, or None if it has not shown it yet."""
+    return _chat_meta.get(chat_guid)
+
+
 def chat_to_thread(c: dict) -> dict:
     """Beeper chat -> the same thread dict fetch_threads() emits."""
     parts = (c.get("participants") or {}).get("items") or []
@@ -229,6 +239,16 @@ def chat_to_thread(c: dict) -> dict:
     local = str(c.get("localChatID") or c.get("id"))
     if c.get("id"):
         _chatid_to_local[c["id"]] = local
+    names = [p.get("fullName") for p in others if p.get("fullName")]
+    more = len(others) - len(names[:4])
+    # A group is never titled with one member's name alone: that is how a
+    # one-to-one chat with that member looks.
+    members = (", ".join(names[:4]) + (f" +{more}" if more > 0 else "")) if (len(names) > 1 or (names and more > 0)) else ""
+    if c.get("type") in ("group", "single") or is_group:
+        _chat_meta[PREFIX + local] = (
+            ((c.get("title") or "").strip() or members or "Group chat") if is_group else title, is_group)
+    else:
+        _chat_meta.pop(PREFIX + local, None)      # the kind is not known: say nothing rather than "not a group"
     last_date = _ts_to_unix(c.get("lastActivity")) or 0.0
     # Per-chat watermark for the live watcher: a message older than the chat's
     # last activity is history being replayed, not news.

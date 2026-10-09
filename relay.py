@@ -493,6 +493,16 @@ CONTACTS: dict[str, str] = {}
 CONTACT_CANON: dict[str, str] = {}
 #: Address key -> the card's own address in sendable form (its country code kept).
 CONTACT_ADDRS: dict[str, str] = {}
+#: Address key -> the number of the contact card that names it (after the same
+#: person's cards on two accounts were folded into one).
+CONTACT_CARD: dict[str, int] = {}
+#: Address keys that sit on more than one card (a couple's landline).
+CONTACT_SHARED: set[str] = set()
+#: Names (as they sound) carried by more than one contact card, counted from
+#: the cards themselves: also a card none of whose numbers can be sent to.
+CARD_NAMESAKES: set[str] = set()
+#: Names (as they sound) of cards that have no address the relay can send to.
+CARD_UNSENDABLE: set[str] = set()
 
 #: Country calling code assumed for a phone number written without one.
 DEFAULT_COUNTRY_CODE = "".join(
@@ -510,55 +520,117 @@ def normalize_phone(s: str) -> str:
 
 
 def norm_key(addr):
+    """Comparison key of an address: an e-mail address lower-cased; a phone
+    number as the digits of its full international form ("15550000001",
+    "972525551234"), read by the rules of normalize_address, so two numbers
+    are equal only when they are the same number; a short code as its digits.
+    Whatever those rules refuse is equal only to itself."""
     if not addr:
         return None
-    return addr.strip().lower() if "@" in addr else normalize_phone(addr)
+    try:
+        sendable = normalize_address(addr.split("X-SHARED")[0])
+    except BadAddress:
+        return "raw:" + " ".join(addr.lower().split())
+    return sendable if "@" in sendable else sendable.lstrip("+")
+
+
+#: What is dropped from the front of a national number before the country code
+#: goes on: "0" unless the country is listed here.
+_TRUNK_PREFIX = {"39": "", "7": "8"}
+#: How many digits a national number has (trunk prefix dropped) where that is
+#: known; elsewhere five to twelve. A number of another length is refused.
+_NATIONAL_DIGITS = {"7": {10}, "33": {9}, "39": set(range(6, 12)), "44": {9, 10}, "49": set(range(6, 12)),
+                    "52": {10}, "61": {9}, "81": {9, 10}, "91": {10}, "972": {8, 9}}
+#: Default countries that dial something other than 00 to call abroad.
+_NO_00_PREFIX = {"7", "55", "57", "61", "62", "65", "66", "81", "82", "234", "254", "852", "886"}
 
 
 def normalize_address(addr: str) -> str:
     """User-typed recipient -> sendable address, or BadAddress.
 
-    An e-mail address is lower-cased. A number written with "+" keeps its own
-    country code, and so does one written with the international prefix (00,
-    or 011 where the default country is 1). A number without any is read as a
-    national number of IMSG_DEFAULT_COUNTRY_CODE (default 1): for 1, ten
-    digits or eleven starting with 1; elsewhere the digits with one leading 0
-    dropped (not for 39, where the 0 belongs to the number). Three to six
-    digits are a short code and stay as they are. Anything else is refused
-    rather than guessed at: a guess is another person's number."""
-    addr = (addr or "").strip()
-    if "@" in addr:
-        return addr.lower()
-    digits = "".join(ch for ch in addr if ch.isdigit())
+    An e-mail address is lower-cased. A phone number that carries its own
+    country code keeps it: written with "+" (also behind "tel:", brackets or
+    invisible characters), or with the international prefix (00, or 011 where
+    the default country is 1). A number without one is read as a national
+    number of IMSG_DEFAULT_COUNTRY_CODE (default 1): for 1, ten digits with an
+    area code that can exist, or eleven starting with 1; elsewhere the digits
+    with the trunk prefix dropped. Three to six digits are a short code.
+
+    Everything else is refused, never guessed at, because a guess is another
+    person's number: letters (a name, a vanity number, an extension), a
+    separator that starts an extension or a service code, a second "+", a
+    length or an area code the default country does not have."""
+    s = unicodedata.normalize("NFKC", addr or "").strip()
+    if any(unicodedata.category(ch) == "Cc" for ch in s):
+        raise BadAddress("more than one line")       # a line break or a tab inside: two values, not one
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Cf").strip()
+    s = re.sub(r"^(tel|sms|mailto)\s*:\s*(//)?", "", s, flags=re.I).strip()
+    if "@" in s:
+        if not re.fullmatch(r"[^@\s<>?&,;]+@[^@\s<>?&,;]+\.[^@\s<>?&,;]+", s):
+            raise BadAddress("not an e-mail address")
+        return s.lower()
+    if any(ch.isalpha() for ch in s):
+        raise BadAddress("not a phone number or an e-mail address")
+    if any(ch in s for ch in ";,#*"):
+        raise BadAddress("a number with an extension or a service code")
+    s = "".join(str(unicodedata.decimal(ch)) if ch.isdecimal() else ch for ch in s)
+    if "+" in s and not "".join(ch for ch in s if ch.isdecimal()).startswith("39"):
+        s = re.sub(r"\(\s*0\s*\)", " ", s)        # "+44 (0)7700 ...": the bracketed trunk zero is not dialled
+                                                    # (in Italy, +39, the zero is part of the number and stays)
+    digits = "".join(ch for ch in s if ch.isdecimal())
     if not digits:
         raise BadAddress("not a phone number or an e-mail address")
-    if addr.startswith("+"):
-        if not 7 <= len(digits) <= 15:
-            raise BadAddress("not a complete phone number")
-        return "+" + digits
-    if 3 <= len(digits) <= 6:
+    first = next(i for i, ch in enumerate(s) if ch.isdecimal())
+    if s.count("+") > 1 or ("+" in s and "+" not in s[:first]):
+        raise BadAddress("not a phone number")
+    if "+" in s:
+        return _international(digits)
+    if 3 <= len(digits) <= 6 and digits[0] != "0":
         return digits
-    if digits.startswith("00") and 9 <= len(digits) - 2 <= 15:
-        return "+" + digits[2:]
+    hint = "write the number with + and its country code"
+    if digits.startswith("00"):
+        # 00 is the international prefix in most countries, not in all: where it
+        # is not, what follows is not a country code and nothing is guessed.
+        if digits.startswith("000") or DEFAULT_COUNTRY_CODE in _NO_00_PREFIX:
+            raise BadAddress(hint)
+        return _international(digits[2:])
     if DEFAULT_COUNTRY_CODE == "1":
-        if digits.startswith("011") and 9 <= len(digits) - 3 <= 15:
-            return "+" + digits[3:]
-        if len(digits) == 10:
+        if digits.startswith("011"):
+            return _international(digits[3:])
+        if len(digits) == 11 and digits[0] == "1":
+            digits = digits[1:]
+        if len(digits) == 10 and digits[0] in "23456789":
             return "+1" + digits
-        if len(digits) == 11 and digits.startswith("1"):
-            return "+" + digits
-        raise BadAddress("write the number with + and its country code")
-    national = digits[1:] if digits.startswith("0") and DEFAULT_COUNTRY_CODE != "39" else digits
-    if not 7 <= len(DEFAULT_COUNTRY_CODE + national) <= 15:
-        raise BadAddress("write the number with + and its country code")
-    return "+" + DEFAULT_COUNTRY_CODE + national
+        raise BadAddress(hint)
+    if digits.startswith(DEFAULT_COUNTRY_CODE):
+        # "44 7700 900123" with a default of 44: a national number, or one written
+        # with its country code and no "+"? Not for the relay to decide.
+        raise BadAddress(hint)
+    trunk = _TRUNK_PREFIX.get(DEFAULT_COUNTRY_CODE, "0")
+    national = digits
+    if trunk and digits.startswith(trunk) and (trunk == "0" or len(digits) == 11):
+        national = digits[len(trunk):]
+    if len(national) not in _NATIONAL_DIGITS.get(DEFAULT_COUNTRY_CODE, range(5, 13)) or (trunk == "0" and national[0] == "0"):
+        raise BadAddress(hint)
+    return _international(DEFAULT_COUNTRY_CODE + national)
 
 
-def contact_address(key: str) -> str:
-    """Contact-map key -> the address to offer and to send to: the card's own.
-    Without one (a card whose number normalize_address refuses) the key
-    itself, which /create_chat then refuses in turn; never a rebuilt number."""
-    return CONTACT_ADDRS.get(key) or key
+def _international(digits: str) -> str:
+    """"+" and the digits of a number that carries its country code, or
+    BadAddress: no country code starts with 0, no number has fewer than seven
+    or more than fifteen digits, and a North American one has exactly eleven
+    with an area code that does not start with 0 or 1."""
+    if not 7 <= len(digits) <= 15 or digits[0] == "0":
+        raise BadAddress("not a complete international number")
+    if digits[0] == "1" and (len(digits) != 11 or digits[1] in "01"):
+        raise BadAddress("not a complete North American number")
+    return "+" + digits
+
+
+def contact_address(key: str) -> str | None:
+    """Contact-map key -> the address to offer and to send to: the card's own,
+    or None. Never the key and never a rebuilt number."""
+    return CONTACT_ADDRS.get(key)
 
 
 def load_contacts():
@@ -572,7 +644,9 @@ def load_contacts():
     except EngineError as e:
         print(f"[contacts] {e.detail}")
         return False         # not loaded: the caller tries again soon
-    m, canon, sendable = {}, {}, {}
+    m, sendable, last_card = {}, {}, {}
+    people: dict[str, list[set]] = {}        # a name as it sounds -> its cards, each a set of address keys
+    unread = 0
     for c in data:
         name = (c.get("displayName")
                 or " ".join(x for x in [c.get("firstName"), c.get("lastName")] if x).strip()
@@ -581,21 +655,58 @@ def load_contacts():
                 or "")
         if not name:
             continue
-        card = []
+        keys = set()
         for group in ("phoneNumbers", "emails"):
             for item in (c.get(group) or []):
                 addr = item.get("address") if isinstance(item, dict) else item
-                k = norm_key(addr) if isinstance(addr, str) else None
-                if k:
-                    m[k] = name
-                    card.append(k)
-                    try:
-                        sendable[k] = normalize_address(addr.split("X-SHARED")[0])
-                    except BadAddress:
-                        sendable.pop(k, None)
-        for k in card:
-            canon[k] = min(card)
-    set_contacts(m, canon, sendable)
+                if not isinstance(addr, str):
+                    continue
+                try:
+                    send = normalize_address(addr.split("X-SHARED")[0])
+                except BadAddress:
+                    unread += 1
+                    continue        # not an address anyone can be sent to: not offered, and it names nobody
+                k = send if "@" in send else send.lstrip("+")
+                m[k] = name
+                sendable[k] = send
+                keys.add(k)
+        # Every named card counts as a card of that name, also one with nothing
+        # the relay can send to. Two cards are one only when they list exactly
+        # the same addresses (the same card on two accounts); nothing else is
+        # ever folded together, whatever the names or the order they arrive in.
+        cards_of_name = people.setdefault(name_key(name), [])
+        target = next((other for other in cards_of_name if keys and other == keys), None)
+        if target is None:
+            target = set(keys)
+            cards_of_name.append(target)
+        for k in keys:
+            last_card[k] = target
+    if unread:
+        print(f"[contacts] {unread} number(s) on contact cards are not usable phone numbers "
+              "(an extension, a service code, a number of another country without +): not offered, and they name no chat")
+    CARD_NAMESAKES.clear()
+    CARD_NAMESAKES.update(nk for nk, sets in people.items() if len(sets) > 1)
+    CARD_UNSENDABLE.clear()
+    CARD_UNSENDABLE.update(nk for nk, sets in people.items()
+                           if not any(name_key(m[k]) == nk for ks in sets for k in ks))
+    cards = [ks for sets in people.values() for ks in sets]
+    index = {id(ks): i for i, ks in enumerate(cards)}
+    on: dict[str, int] = {}
+    for ks in cards:
+        for k in ks:
+            on[k] = on.get(k, 0) + 1
+    canon = {}
+    self_keys = {norm_key(a) for a in SELF_RAW}
+    for ks in cards:
+        own = sorted(k for k in ks if on[k] == 1 and k not in self_keys)
+        for k in ks:
+            # An address on more than one card is nobody's in particular: it is its
+            # own person, and never the key another address is known by. Nor is one
+            # of the owner's own addresses (IMSG_SELF): whoever shares a card with
+            # it is not the owner.
+            canon[k] = own[0] if own and on[k] == 1 and k not in self_keys else k
+    set_contacts(m, canon, sendable, {k: index[id(ks)] for k, ks in last_card.items()},
+                 {k for k, n in on.items() if n > 1})
     return True
     print(f"[contacts] {len(data)} contacts from BlueBubbles -> {len(m)} phone/email keys")
 
@@ -656,14 +767,21 @@ def group_title(conn, chat_rowid, display_name):
     return ", ".join(names[:4]) + ("…" if len(names) > 4 else "")
 
 
-def set_contacts(names: dict, canon: dict | None = None, sendable: dict | None = None) -> None:
-    """Replace the contact map and its two companions together."""
+def set_contacts(names: dict, canon: dict | None = None, sendable: dict | None = None,
+                 card: dict | None = None, shared: set | None = None) -> None:
+    """Replace the contact map and its companions together. The person map
+    goes first and comes back last: while the others are being replaced an
+    address is only ever equal to itself, never to somebody else's."""
+    CONTACT_CANON.clear()
     CONTACTS.clear()
     CONTACTS.update(names)
-    CONTACT_CANON.clear()
-    CONTACT_CANON.update(canon or {})
     CONTACT_ADDRS.clear()
     CONTACT_ADDRS.update(sendable or {})
+    CONTACT_CARD.clear()
+    CONTACT_CARD.update(card or {})
+    CONTACT_SHARED.clear()
+    CONTACT_SHARED.update(shared or ())
+    CONTACT_CANON.update(canon or {})
 
 
 def person_key(addr):
@@ -782,15 +900,52 @@ def _read_state() -> tuple[dict, bool]:
     its backup can be read as a state."""
     seen = False
     for path in (STATE_PATH, STATE_PATH.with_suffix(".bak")):
-        if path.exists():
+        try:
+            text = _read_state_file(path)
+        except FileNotFoundError:
+            continue
+        except UnicodeDecodeError:
             seen = True
+            continue                       # not text at all: damage, try the backup
+        seen = True
+        try:
+            data = json.loads(text)
+        except ValueError:
+            # Unparseable: read it once more before calling it damage (a read
+            # that came back short), then try the backup.
             try:
-                data = json.loads(path.read_text())
-                if isinstance(data, dict):
-                    return data, False
-            except Exception:
-                continue   # try the backup before giving up
+                data = json.loads(_read_state_file(path))
+            except (ValueError, FileNotFoundError):
+                continue
+        if isinstance(data, dict):
+            if path != STATE_PATH:
+                _note_backup_in_use()
+            return data, False
     return {}, seen
+
+
+_BACKUP_NOTED = False
+
+
+def _note_backup_in_use() -> None:
+    global _BACKUP_NOTED
+    if not _BACKUP_NOTED:
+        _BACKUP_NOTED = True
+        print(f"[state] {STATE_PATH.name} is missing or not a state: reading {STATE_PATH.with_suffix('.bak').name}")
+
+
+def _read_state_file(path: Path) -> str:
+    """The file's text. A file that is there and cannot be read right now is
+    not a damaged file and not a missing one: the read is tried once more, and
+    then the error goes to the caller. Nobody may take it for an empty state
+    and write over a file that is intact."""
+    try:
+        return path.read_text()
+    except (FileNotFoundError, UnicodeDecodeError):
+        raise
+    except OSError:
+        time.sleep(0.05)
+        return path.read_text()
 
 
 def load_state() -> dict:
@@ -820,25 +975,40 @@ def save_state(**updates):
         st.update(updates)
         blob = json.dumps(st)
         tmp = STATE_PATH.with_suffix(".tmp")
-        with open(tmp, "w") as f:
-            f.write(blob)
-            f.flush()
-            os.fsync(f.fileno())
+        try:
+            with open(tmp, "w") as f:
+                f.write(blob)
+                f.flush()
+                os.fsync(f.fileno())
+        except BaseException:
+            with contextlib.suppress(OSError):
+                tmp.unlink()               # a save that failed leaves nothing behind
+            raise
         if STATE_PATH.exists():
             # The backup is a copy: the live file is never absent, not even
-            # between two system calls.
-            with contextlib.suppress(Exception):
-                copy = bak.with_suffix(".bak.tmp")
+            # between two system calls. It is best effort.
+            copy = bak.with_suffix(".bak.tmp")
+            try:
                 shutil.copyfile(STATE_PATH, copy)
+                if not isinstance(json.loads(copy.read_text()), dict):
+                    raise ValueError("the live file is not a state: the backup stays as it is")
                 copy.replace(bak)
-        tmp.replace(STATE_PATH)   # atomic on POSIX
+            except Exception:
+                with contextlib.suppress(OSError):
+                    copy.unlink()
+        try:
+            tmp.replace(STATE_PATH)   # atomic on POSIX
+        except BaseException:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
+            raise
 
 
 def load_cursor():
     try:
         return int(load_state().get("last_rowid", 0))
-    except Exception:
-        return 0
+    except (TypeError, ValueError):
+        return 0          # a state without a usable cursor; a state that cannot be READ is an error, not a zero
 
 
 def save_cursor(rowid):
@@ -910,20 +1080,39 @@ def attachment_label(atts):
     return "\U0001F4CE Attachment"
 
 
+#: The registrations as last read for a push, for a moment in which the state file cannot be read.
+_TOKENS_SEEN: set = set()
+
+
 def push_group_flag(msg: dict) -> str | None:
     """"1" / "0" for the push's is_group, so the app does not have to guess a
     group from its title (a group whose title is not cached yet must not look
-    like a one-to-one chat). None for a Google Messages row: its flag is not
-    reliable yet, and the app then judges by the title as before."""
-    if str(msg.get("chat_guid") or "").startswith("bp:"):
-        return None
+    like a one-to-one chat). For a Google Messages row the answer comes from
+    Beeper's chat listing; None only for a chat that listing has not shown
+    yet, and the app then judges by the title as before."""
+    guid = str(msg.get("chat_guid") or "")
+    if guid.startswith("bp:"):
+        meta = beeper.chat_meta(guid)
+        # A chat Beeper's listing has not shown is not known to be one-to-one,
+        # so it is not presented as one: a reply typed into the notification
+        # may reach more people than the sender.
+        return "1" if meta is None or meta[1] else "0"
     return "1" if msg.get("is_group") else "0"
 
 
 def send_push(msg: dict):
     if not FCM_READY:
         return
-    tokens = push_tokens()
+    global _TOKENS_SEEN
+    try:
+        tokens = push_tokens()
+        _TOKENS_SEEN, fresh = set(tokens), True
+    except OSError as e:
+        # The state file cannot be read right now. A push must not be lost over
+        # that, nor may the error stop the loop that called: the registrations
+        # read last are used, and nothing is written back.
+        print(f"[fcm] state file unreadable ({type(e).__name__}) — pushing to the registrations read last")
+        tokens, fresh = set(_TOKENS_SEEN), False
     if not tokens:
         return
     # Archived chats are silenced: skip the push entirely (don't even wake the
@@ -962,8 +1151,17 @@ def send_push(msg: dict):
     # Prefer the human title the thread list computes (member names for unnamed
     # groups); blank a raw "chatNNN" identifier so the app falls back to sender.
     better = CHAT_TITLES.get(data["chat_guid"])
+    if data["chat_guid"].startswith("bp:"):
+        # A Google Messages group is titled from Beeper's own chat listing
+        # (its name, or its members), whether or not a client has fetched the
+        # thread list; a chat the listing has not shown is "Group chat".
+        meta = beeper.chat_meta(data["chat_guid"])
+        if meta is None:
+            better = "Group chat"
+        elif meta[1]:
+            better = meta[0]
     if better:
-        data["chat_name"] = better
+        data["chat_name"] = better[:200]
     elif data["chat_name"].startswith("chat") and data["chat_name"][4:].isdigit():
         data["chat_name"] = ""
     dead = []
@@ -977,9 +1175,10 @@ def send_push(msg: dict):
             dead.append(t)
         except Exception as e:
             print(f"[fcm] send error: {e}")
-    if dead:
-        save_tokens(tokens - set(dead))
-        print(f"[fcm] pruned {len(dead)} dead token(s)")
+    if dead and fresh:
+        with contextlib.suppress(OSError):
+            save_tokens(tokens - set(dead))
+            print(f"[fcm] pruned {len(dead)} dead token(s)")
 
 
 # ---------- ws hub ----------
@@ -1315,7 +1514,11 @@ def health(request: Request):
     # chain can do in an iMessage chat beyond plain sending, sorted, out of
     # react / reply / create_chat / unsend / edit, so a client can offer
     # "Edit" and "Undo Send" only where they can work.
-    return {"ok": True, "cursor": load_cursor(), "contacts": len(CONTACTS),
+    try:
+        cursor = load_cursor()
+    except OSError:
+        cursor = None             # the state file cannot be read right now
+    return {"ok": True, "cursor": cursor, "contacts": len(CONTACTS),
             "self": SELF_RAW, "bb_reachable": bb,
             "engines": engine_names(chain), "features": FEATURES, "protocol": PROTOCOL,
             "capabilities": imessage_capabilities(chain)}
@@ -1362,6 +1565,49 @@ def _says(ans: str, words) -> bool:
     padded = f" {ans} "
     return any(f" {w} " in padded for w in words)
 
+
+#: Every answer that sends. After squash() the WHOLE answer must be one of
+#: these. A closed list on purpose: a list of refusals is never complete, and
+#: a list of allowed words is not closed either ("that's ok" is a polite no,
+#: "correct that" is a correction, "ok do" was cut off).
+YES_PHRASES = frozenset({
+    "yes", "yes please", "yes thanks", "yes thank you", "yes send it", "yes do it", "yes send",
+    "yes correct", "yes that s right", "yes that s correct",
+    "yeah", "yeah send it", "yeah do it", "yep", "yup",
+    "ok", "okay", "ok send it", "okay send it", "ok send", "ok do it", "okay do it",
+    "ok thanks", "okay thanks", "ok thank you", "okay thank you", "ok yes", "okay yes",
+    "sure", "sure send it", "sure do it",
+    "confirm", "send", "send it", "send it please", "please send it", "do it", "do it please",
+    "correct", "that s correct", "right", "that s right",
+})
+
+
+def _only_yes(answer: str) -> bool:
+    """A plain yes and nothing else: one of YES_PHRASES, said as a statement."""
+    return "?" not in (answer or "") and squash(answer) in YES_PHRASES
+
+
+def _latin(name: str) -> bool:
+    """True when squash() keeps every letter of the name, so that words said can be told from its words."""
+    folded = "".join(ch for ch in unicodedata.normalize("NFKD", name or "") if not unicodedata.combining(ch))
+    return not any(ch.isalpha() and not ch.isascii() for ch in folded)
+
+
+def _named(ans: str, cands):
+    """The one candidate the answer names: words that all belong to its name
+    and to no other candidate's. Never a resemblance, and never a name part
+    of which is in another script (its other part cannot be heard here)."""
+    words = set(ans.split())
+    hits = [c for c in cands if words and words <= set(squash(c[1]).split())]
+    return hits[0] if len(hits) == 1 and _latin(hits[0][1]) else None
+
+
+def _not_understood(answer: str) -> bool:
+    """A digit, or a letter of another script: nothing here can read it as a yes or a name."""
+    folded = "".join(ch for ch in unicodedata.normalize("NFKD", answer or "") if not unicodedata.combining(ch))
+    plain = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ .,!'’-"
+    return any(ch not in plain for ch in folded)
+
 PENDING: dict = {}
 PENDING_TTL = 180
 NAMESAKES_SPEAK = "You have more than one contact called {}. Send that one from the app."
@@ -1382,7 +1628,67 @@ def _failure_status(e: Exception) -> str:
 
 
 def squash(s):
-    return " ".join(re.sub(r"[^a-z ]", " ", (s or "").lower()).split())
+    """Lower-case Latin letters and single spaces: accents folded, everything else dropped."""
+    s = "".join(ch for ch in unicodedata.normalize("NFKD", s or "") if not unicodedata.combining(ch))
+    return " ".join(re.sub(r"[^a-z ]", " ", s.lower()).split())
+
+
+def _sound_word(w: str) -> str:
+    """One word of a name as it is said, roughly: letters that are written and
+    not said are dropped (Leigh, Knight, Thompson, Lamb), spellings of one
+    sound are one (ph/f/v, c/k/q, c/s/z, g/j before e and i), a run of vowels
+    is one of three classes. Rough on purpose: it is only ever used to refuse."""
+    for old, new in (("tch", "ch"), ("ph", "f"), ("ck", "k"), ("dg", "j"), ("mps", "ms"), ("mpt", "mt"),
+                     ("nds", "ns"), ("lm", "m")):
+        w = w.replace(old, new)
+    for old, new in (("kn", "n"), ("gn", "n"), ("pn", "n"), ("wr", "r"), ("ps", "s"), ("wh", "w")):
+        if w.startswith(old):
+            w = new + w[len(old):]
+    if w.endswith("mb"):
+        w = w[:-1]
+    if w.endswith(("ay", "ey")) and len(w) > 3:
+        w = w[:-2] + "y"                         # Lindsay / Linsey
+    w = w[:1] + w[1:].replace("gh", "")
+    w = w.replace("sh", "S").replace("ch", "C").replace("th", "T")
+    if len(w) > 2 and w[-1] == "e" and w[-2] not in "aeiouy" and any(c in "aeiouy" for c in w[:-2]):
+        w = w[:-1]                               # a final e that is written and not said (Anne, Jane)
+    out = []
+    for i, ch in enumerate(w):
+        nxt = w[i + 1] if i + 1 < len(w) else ""
+        if ch == "h" and i:
+            continue
+        if ch == "c":
+            ch = "s" if nxt and nxt in "eiy" else "k"
+        elif ch == "g" and nxt and nxt in "eiy":
+            ch = "j"
+        elif ch in "qk":
+            ch = "k"
+        elif ch == "x":
+            ch = "ks"
+        elif ch == "z":
+            ch = "s"
+        elif ch == "v":
+            ch = "f"
+        elif ch in "aeiouy":
+            ch = "a" if ch == "a" else ("o" if ch in "ou" else "i")
+            if out and out[-1] in ("a", "i", "o"):
+                continue                         # a run of vowels counts once, as its first
+        if not out or out[-1] != ch:
+            out.append(ch)
+    return "".join(out)
+
+
+def name_key(name) -> str:
+    """A contact name as it sounds, roughly. Case, spacing, punctuation,
+    accents and common spelling variants of one sound ("Sara" / "Sarah",
+    "Jon" / "John", "Lee" / "Leigh", "O'Brien" / "OBrien") do not tell two
+    names apart, because speech-to-text and a read-back cannot tell them
+    apart either. Only ever used to REFUSE: two cards with one key are
+    namesakes for the voice path. Nothing is merged by it, and it does not
+    claim to know every pair of names that sound alike."""
+    words = squash(name).split()
+    key = re.sub(r"([aio])[aio]+", r"\1", "".join(_sound_word(w) for w in words))   # "Mary Ann" is "Maryann"
+    return key or "".join((name or "").lower().split())
 
 
 def _ratio(a, b):
@@ -1406,10 +1712,14 @@ def name_score(spoken, name):
 
 
 def name_index():
-    """lowercase name -> (display name, [addresses]) from the contact map."""
+    """lowercase name -> (display name, [addresses]) from the contact map. An
+    address the card shares with another card comes after the card's own, so
+    a message for one of a couple is not addressed to their landline."""
     idx = {}
-    for key, name in CONTACTS.items():
+    for key, name in sorted(CONTACTS.items(), key=lambda kv: kv[0] in CONTACT_SHARED):
         addr = contact_address(key)
+        if not addr:
+            continue
         entry = idx.setdefault(name.lower(), (name, []))
         if addr not in entry[1]:
             entry[1].append(addr)
@@ -1421,13 +1731,17 @@ def namesake_names() -> set:
     the voice path cannot tell apart, so it sends to neither."""
     cards: dict[str, set] = {}
     for key, name in CONTACTS.items():
-        cards.setdefault(name.lower(), set()).add(CONTACT_CANON.get(key) or key)
-    return {name for name, on in cards.items() if len(on) > 1}
+        card = CONTACT_CARD[key] if key in CONTACT_CARD else (CONTACT_CANON.get(key) or key)
+        cards.setdefault(name_key(name), set()).add(card)
+    return {name for name, on in cards.items() if len(on) > 1} | CARD_NAMESAKES
 
 
 def preferred_address(addrs):
-    phones = [a for a in addrs if "@" not in a]
-    return (phones or addrs)[0]
+    """A phone number before an e-mail address, and the card's own addresses
+    before one it shares with another card."""
+    own = [a for a in addrs if norm_key(a) not in CONTACT_SHARED] or addrs
+    phones = [a for a in own if "@" not in a]
+    return (phones or own)[0]
 
 
 def contact_recency():
@@ -1456,6 +1770,15 @@ def _strip_joiner(msg):
     return msg
 
 
+def _has_one_to_one(addr: str) -> bool:
+    conn = db()
+    try:
+        found = find_chat_for_addresses(conn, [addr])
+    finally:
+        conn.close()
+    return bool(found) and not found.get("is_group")
+
+
 def resolve_assistant(q: str):
     """-> (status, candidates, text). Candidates are (score, display, addrs)."""
     s = " ".join((q or "").strip().split())
@@ -1471,14 +1794,32 @@ def resolve_assistant(q: str):
     m = re.match(r"^([\d\s\-\(\)\+\.]{7,})\s+(\S.*)$", s)
     if m and sum(c.isdigit() for c in m.group(1)) >= 7:
         num = m.group(1).strip()
+        # The digits run on into the message ("text 555 0142 100 dollars"): only
+        # a number that is grouped like one is taken for one.
+        shape = tuple(len(g) for g in re.findall(r"\d+", num))
+        if not num.startswith("+") and shape not in ((10,), (11,), (3, 3, 4), (1, 3, 3, 4), (3, 7), (1, 10)):
+            return "no_recipient", [], ""
         try:
-            return "confident", [(1.0, num, [normalize_address(num)])], m.group(2).strip()
+            addr = normalize_address(num)
         except BadAddress:
             return "no_recipient", [], ""
+        # And it has to be a number the relay already knows: a contact's, or one
+        # there is a conversation with. A number that is only spoken can have
+        # swallowed the digits the message began with, and nobody would notice.
+        if norm_key(addr) not in CONTACTS and not _has_one_to_one(addr):
+            return "no_recipient", [], ""
+        return "confident", [(1.0, num, [addr])], m.group(2).strip()
 
     idx = name_index()
     recency = contact_recency()
     words = s.split()
+    # The name that was said belongs to a card none of whose numbers can be
+    # used: say so (as "not found"), and do not offer a name that resembles it.
+    have = {name_key(display) for display, _ in idx.values()}
+    for i in range(1, min(4, len(words)) + 1):
+        said = name_key(" ".join(words[:i]))
+        if said and said in CARD_UNSENDABLE and said not in have:
+            return "not_found", [], s
     best = {}   # display name -> (score, msg, addrs)
     for i in range(1, min(4, len(words)) + 1):
         span = " ".join(words[:i])
@@ -1493,11 +1834,12 @@ def resolve_assistant(q: str):
         return "not_found", [], s
     ranked = sorted(
         ((sc, d, a, msg) for d, (sc, msg, a) in best.items()),
-        key=lambda c: (round(c[0], 2), recency.get(c[1], 0)), reverse=True,
+        key=lambda c: (round(c[0], 2), len(squash(c[1]).split()) if c[0] >= 1.0 else 0, recency.get(c[1], 0)),
+        reverse=True,
     )
     top = ranked[0]
     shared = namesake_names()
-    if top[1].lower() in shared and top[0] >= SUGGEST_SCORE:
+    if name_key(top[1]) in shared and top[0] >= SUGGEST_SCORE:
         return "namesakes", [(top[0], top[1], top[2])], top[3]
     if not top[3]:
         return "no_message", [(top[0], top[1], top[2])], ""
@@ -1507,8 +1849,10 @@ def resolve_assistant(q: str):
     if top[0] >= CONFIDENT_SCORE and (exact or top[0] - second >= CONFIDENT_LEAD):
         return "confident", [(top[0], top[1], top[2])], top[3]
     if top[0] >= SUGGEST_SCORE:
-        cands = [(sc, d, a) for sc, d, a, _ in ranked
-                 if sc >= SUGGEST_SCORE and d.lower() not in shared][:3]
+        # Only names that leave the same message: the question reads ONE message
+        # back, and it has to be the one that is sent whoever is then named.
+        cands = [(sc, d, a) for sc, d, a, msg in ranked
+                 if sc >= SUGGEST_SCORE and name_key(d) not in shared and msg == top[3]][:3]
         return "suggest", cands, top[3]
     return "not_found", [], top[3]
 
@@ -1526,11 +1870,16 @@ async def read_fields(request, *fields):
                     data = parsed
             except Exception:
                 from urllib.parse import parse_qs
-                data = {k: v[0] for k, v in parse_qs(raw.decode(errors="ignore")).items()}
+                data = {k: v[0] for k, v in parse_qs(raw.decode(errors="ignore"), keep_blank_values=True).items()}
     except Exception:
         pass
+    # A body that names one of the fields decides them all: an empty answer in
+    # the body is an empty answer, not a reason to look in the URL. A value
+    # that is not a string was not spoken and counts as nothing.
+    if any(f in data for f in fields):
+        return {f: (data[f].strip() if isinstance(data.get(f), str) else "") for f in fields}
     qp = dict(request.query_params)
-    return {f: str(data.get(f) or qp.get(f) or "").strip() for f in fields}
+    return {f: str(qp.get(f) or "").strip() for f in fields}
 
 
 @app.post("/assistant/prepare")
@@ -1570,7 +1919,7 @@ async def assistant_prepare(request: Request):
     print(f"[assist] {len(text)}-character message -> ambiguous: {names}")
     return {"ok": True, "status": "choose", "token": token,
             "candidates": names, "text": text,
-            "speak": f"Did you mean {listed}? Say the name, or say cancel."}
+            "speak": f"Did you mean {listed}? The message is: {text}. Say the full name, or say cancel."}
 
 
 async def assistant_deliver(p: dict, answer: str) -> dict:
@@ -1578,29 +1927,34 @@ async def assistant_deliver(p: dict, answer: str) -> dict:
     confirmation and a 'which one did you mean' suggestion round. Shared by the
     JSON and plain-text endpoints."""
     ans = squash(answer)
-    # Fail closed: an answer with nothing understood in it (empty, digits, another
-    # script) and a refusal anywhere in the answer both cancel. Only a yes that
-    # stands as a word of its own sends.
-    if not ans or _says(ans, NO_WORDS + NEGATIONS):
-        return {"ok": False, "status": "cancelled", "speak": "Cancelled."}
-    yes = _says(ans, YES_WORDS)
+    cancelled = {"ok": False, "status": "cancelled", "speak": "Cancelled."}
+    # Fail closed. Nothing is sent unless the answer is understood from its
+    # first word to its last: as a yes and nothing else, or as one candidate's
+    # name. An answer with a digit or another script in it, an empty one, a
+    # refusal, a doubt, a correction, a pause: all of them cancel.
+    if not ans or _not_understood(answer) or "?" in answer or ans in NO_WORDS + NEGATIONS:
+        return cancelled
+    refused = _says(ans, NO_WORDS + NEGATIONS)
 
     if p["kind"] == "choose":
-        pick = None
-        if ans:
-            scored = sorted(((name_score(ans, c[1]), c) for c in p["candidates"]),
-                            reverse=True, key=lambda x: x[0])
-            if scored and scored[0][0] >= 0.55:
-                pick = scored[0][1]
-        if pick is None and yes and len(p["candidates"]) == 1:
-            pick = p["candidates"][0]
+        cands = p["candidates"]
+        # Only a candidate's FULL name picks it: a word of a name is also an
+        # ordinary word ("skip", "other", "will"), and nothing here can tell
+        # which was meant. The words must also belong to no other candidate.
+        said_in_full = [c for c in cands if squash(c[1]) == ans]
+        if len(said_in_full) == 1 and _named(ans, cands) is said_in_full[0]:
+            pick = said_in_full[0]            # whatever words the name is made of
+        elif said_in_full or refused:
+            return cancelled                  # more than one candidate answers to that, or it is a refusal
+        else:
+            pick = cands[0] if len(cands) == 1 and _only_yes(answer) else None
         if pick is None:
             return {"ok": False, "status": "cancelled",
                     "speak": "I didn't catch which one. Cancelled."}
         _, display, addrs = pick
     else:
-        if not yes:
-            return {"ok": False, "status": "cancelled", "speak": "Cancelled."}
+        if refused or not _only_yes(answer):
+            return cancelled
         display, addrs = p["name"], p["addresses"]
 
     addr = preferred_address(addrs)
@@ -1656,11 +2010,11 @@ LAST_PENDING: dict = {}
 
 @app.api_route("/v/prepare", methods=["GET", "POST"])
 async def v_prepare(request: Request):
+    LAST_PENDING.clear()          # first of all: whatever goes wrong below, the previous message is not left armed
     f = await read_fields(request, "query", "q")
     query = f["query"] or f["q"]
     status, cands, text = resolve_assistant(query)
 
-    LAST_PENDING.clear()
     if status in ("no_recipient", "not_found"):
         return PlainTextResponse("I couldn't tell who to send that to.")
     if status == "namesakes":
@@ -1681,7 +2035,7 @@ async def v_prepare(request: Request):
     listed = names[0] if len(names) == 1 else \
         " or ".join([", ".join(names[:-1]), names[-1]])
     print(f"[assist] {len(text)}-character message -> ambiguous: {names}")
-    return PlainTextResponse(f"Did you mean {listed}? Say the name, or say cancel.")
+    return PlainTextResponse(f"Did you mean {listed}? The message is: {text}. Say the full name, or say cancel.")
 
 
 @app.api_route("/v/confirm", methods=["GET", "POST"])
@@ -1778,6 +2132,8 @@ def contacts_search(q: str = ""):
         if q not in name.lower() and q not in key:
             continue
         addr = contact_address(key)
+        if not addr:
+            continue
         k = (name.lower(), addr)
         if k in seen:
             continue

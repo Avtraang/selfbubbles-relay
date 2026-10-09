@@ -220,7 +220,9 @@ def test_typeahead_offers_the_cards_own_number(client, abroad, name, card, e164)
 
 def test_a_first_message_to_a_contact_abroad_goes_to_their_number(client, bb, osa, abroad):
     bb.answers = [_ok()]
-    resp = client.post("/create_chat", json={"addresses": ["+972525551234"], "text": TEXT}, headers=AUTH)
+    # the address the app sends is the one the typeahead offered
+    (hit,) = client.get("/contacts/search", params={"q": "noa levi"}, headers=AUTH).json()["results"]
+    resp = client.post("/create_chat", json={"addresses": [hit["address"]], "text": TEXT}, headers=AUTH)
     assert resp.status_code == 200
     assert _sends(bb) == [("new", ("+972525551234",))]
 

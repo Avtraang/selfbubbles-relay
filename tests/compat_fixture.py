@@ -406,7 +406,8 @@ def seed_relay_state(module) -> None:
     names = {module.norm_key(addr): name for addr, name in SYNTHETIC_CONTACTS.items()}
     # One synthetic name is one contact card: its addresses share the card's smallest key.
     canon = {k: min(x for x, n in names.items() if n == name) for k, name in names.items()}
-    module.set_contacts(names, canon)
+    sendable = {module.norm_key(addr): module.normalize_address(addr) for addr in SYNTHETIC_CONTACTS}
+    module.set_contacts(names, canon, sendable)
     module.SELF_RAW[:] = [SELF_PHONE]
     module.FAILED_HEIC.clear(); module.FAILED_HEIC.add("ATT-HEIC-FAILED")
 

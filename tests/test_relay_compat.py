@@ -74,7 +74,7 @@ def relay_state(relay_module):
     ``fetch_threads`` reads) plus the tmp state file around each test."""
     r = relay_module.module
     saved = (dict(r.CONTACTS), list(r.SELF_RAW), set(r.FAILED_HEIC))
-    saved_cards = (dict(r.CONTACT_CANON), dict(r.CONTACT_ADDRS))
+    saved_cards = (dict(r.CONTACT_CANON), dict(r.CONTACT_ADDRS), dict(r.CONTACT_CARD), set(r.CONTACT_SHARED))
     saved_threads = _snapshot_thread_state(r)
     state_file = relay_module.state_path
     state_bak = state_file.with_suffix(".bak")
