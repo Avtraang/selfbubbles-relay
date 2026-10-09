@@ -444,8 +444,8 @@ Every route except `GET /health` requires the token, as the `X-Imsg-Token` heade
 | GET | `/thumbnail/{guid}` | token | Quick Look thumbnail (`qlmanage`), cached. |
 | GET | `/bp_asset?u=` | token | Proxy a Beeper (Matrix) asset for the phone. `u` must be an `mxc://`, `localmxc://` or `file://` URL, the three schemes Beeper Desktop's asset endpoint takes; anything else gets `400 unsupported asset url`, and so does a `file://` URL with a `..` segment or a NUL in its path. |
 | POST | `/match_chat` | token | `{"addresses"}`: does an existing chat match this recipient set exactly. |
-| POST | `/create_chat` | token | `{"addresses","text"}`: send into the matching chat, or create one (BlueBubbles only; 501 otherwise). |
-| POST | `/send` | token | `{"chat_guid","text","reply_to_guid"?}` through the chain. |
+| POST | `/create_chat` | token | `{"addresses","text","client_id"?}`: send into the matching chat, or create one (BlueBubbles only; 501 otherwise). With a `client_id` the same request is not sent twice (see [Send ids](#send-ids)). |
+| POST | `/send` | token | `{"chat_guid","text","reply_to_guid"?,"client_id"?}` through the chain. With a `client_id` the same request is not sent twice (see [Send ids](#send-ids)). |
 | POST | `/send_attachment` | token | Multipart `chat_guid` + `file` through the chain; 501 for a `bp:` chat. |
 | POST | `/react` | token | `{"chat_guid","message_guid","reaction"}` (love, like, dislike, laugh, emphasize, question); BlueBubbles only. |
 | POST | `/unsend` | token | `{"chat_guid","guid","part_index"?}`: Undo Send for one of your own iMessages, within 2 minutes; BlueBubbles only. Answers `{"ok":true,"via":"bb"}` once `chat.db` shows it. See [Edit and Undo Send](#edit-and-undo-send) for the refusals. |
@@ -466,6 +466,21 @@ Every route except `GET /health` requires the token, as the `X-Imsg-Token` heade
 | POST | `/ft_answer?uuid=` | token | Answer the FaceTime call on the Mac and return the web link to join; blocks 5–40 s. `502 BlueBubbles unreachable` when the BlueBubbles server cannot be reached (also on the two routes below), `502 BlueBubbles returned an unexpected answer` when what answers at `BB_URL` is not BlueBubbles' JSON (also on `/ft_link`). `uuid` must look like a call id (letters, digits, `.`, `_`, `-`; BlueBubbles reports calls by UUID), otherwise `422`, here and on `/ft_decline`. |
 | POST | `/ft_decline?uuid=` | token | Decline or leave the call. |
 | POST | `/ft_link` | token | Mint a fresh outbound FaceTime link: `{"link"}`. |
+
+### Send ids
+
+A text send may carry an id the client chose: `client_id` on `/send` and `/create_chat`, 8 to 64 letters, digits, `-` or `_` (a UUID fits). A request without one is handled as it always was. `GET /health` names `send_id` among its `capabilities` on a relay that does this, so a client can tell before it relies on it.
+
+The relay writes the id to `send_ids.json`, beside the state file, before any engine is asked, and what became of the send when it ends. A request whose id it knows is answered from that:
+
+| What became of the first request | The answer to the same id again |
+| --- | --- |
+| delivered | 200, the same reply with `"duplicate": true`; nothing is sent. `/create_chat` names the conversation again |
+| certainly not sent (the relay answered 4xx or 501) | it is sent |
+| not known: the engine gave no answer, the relay answered 5xx, or the relay stopped in the middle | 409 with `{"detail": {"code": "send_outcome_unknown"}}`; nothing is sent under this id again |
+| still being worked on | the second request waits for the first and is then answered as above |
+
+The same id with another chat, other recipients or another text is refused (409, `send_id_reused`). If `send_ids.json` cannot be read or written, a request that carries an id is refused (503, `send_ids_unavailable`) and nothing is sent. The file holds, per id, a fingerprint of the message, the outcome, a time and the delivery path: no text and no recipient. Ids are kept for 48 hours, at most 2,000 of them.
 
 ## Logs and privacy
 
@@ -508,7 +523,7 @@ To look at the relay and the app without your own conversations, [`tools/make_de
 - **FaceTime needs somebody at the Mac.** The answer and link calls are BlueBubbles' API and are covered by tests against a scripted BlueBubbles; the ring itself (webhook to push) is not. The phone then waits in FaceTime's web lobby until it is admitted from the Mac. The auto-admit rig that does that unattended is display-specific, untested on macOS 27, and off in the author's own deployment today.
 - **Old attachments may be gone from disk.** If Messages in iCloud was ever on, it kept older attachments in the cloud only; the relay answers `404 file missing on disk` and the app shows "Not on the Mac anymore". Messages.app can fetch them again only while Messages in iCloud is on, which conflicts with the requirement above; the alternative is copying `~/Library/Messages/Attachments` from a Mac that still has the files.
 - **Single user.** One token, one state file, one pending slot for the voice endpoints. Two phones can connect; two people should not.
-- **The relay cannot recognise the same send arriving twice.** A second POST is a second message. The app therefore never repeats a send by itself and asks you to look at the chat before "Send again" after a send that ended without an answer. A send id is planned; `tests/test_send_id_pending.py` keeps the gap as an expected failure until then.
+- **Only a text that carries a send id is protected against being sent twice.** `/send` and `/create_chat` recognise a repeated request by its `client_id` ([Send ids](#send-ids)). A request without one is a message every time it arrives: that is every send of an app from before the id, a voice send (the relay makes those itself, on a spoken yes), and an attachment (`/send_attachment` takes no id). An id is remembered for 48 hours and the relay keeps at most 2,000; a request that comes later than that is a new message. What the relay cannot know, it does not guess: after a send that ended without an answer the id is refused from then on, and sending the text after all takes a new id, which is the sender's decision.
 - **The built-in bind address is every interface.** Without `IMSG_BIND` the relay binds `0.0.0.0` (IPv4), as it always did, and the token is then the only protection on your LAN. The example files set `IMSG_BIND=127.0.0.1`; keep that unless your HTTPS route reaches the relay over the LAN. An IPv6 address in `IMSG_BIND` is handed to uvicorn as it is and has not been tried.
 - **Local Network privacy under launchd** blocks LAN hosts until Python is allowed; see [above](#macos-local-network-privacy). The fix described there is expected, not yet confirmed on the author's relay.
 - **Output buffering under launchd.** The relay flushes every line it prints, so the doctor table is in `relay.log` as soon as the process starts. That was checked with stdout redirected to a file and to a pipe, not by watching a LaunchAgent; the launchd example sets `PYTHONUNBUFFERED=1` as well.

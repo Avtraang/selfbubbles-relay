@@ -19,6 +19,7 @@ on its own.
 | --- | --- | --- | --- |
 | `relay.log` | launchd `StandardOutPath` (stdout) | the relay's own `[tag]` lines **and** uvicorn's HTTP access log | forever, no rotation |
 | `relay.err` | launchd `StandardErrorPath` (stderr) | uvicorn's startup/shutdown and WebSocket lines, Python tracebacks | forever, no rotation |
+| `send_ids.json`, `send_ids.json.tmp` | `SendIds` in `relay.py` | the ids of text sends that carried one (`client_id`), each with a fingerprint of its message, what became of it, a time and the delivery path. No message text and no recipient. Mode 600 | small: ids are kept for 48 hours, at most 2,000, rewritten in place |
 | `relay_state.json`, `relay_state.bak`, `relay_state.tmp` | `save_state()` in `relay.py` | cursor, read marks, pins, archive list, auto-translate list, unread marks, icon misses, FCM device tokens | small, rewritten in place |
 | `icons/` | `/chat_icon/{guid}` | group-chat photos, one file per chat, named after the chat identifier | until `POST /chat_icon/refresh` |
 | `thumb_cache/` | `/thumbnail/{guid}` | Quick Look previews (`<guid>.png`) of videos, PDFs, documents | forever |

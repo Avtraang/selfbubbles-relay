@@ -688,7 +688,8 @@ def test_a_501_is_answered_only_when_no_engine_in_the_chain_can_do_it(r, db, bb,
     that cannot take the change, not an engine that failed, and not
     BlueBubbles answering 501 itself."""
     def capabilities():
-        return client.get("/health", headers=AUTH).json()["capabilities"]
+        # What the engines can do. "send_id" is the relay's own (it keeps send ids) and is always there.
+        return [c for c in client.get("/health", headers=AUTH).json()["capabilities"] if c != "send_id"]
 
     answers: dict[str, int] = {}
 
@@ -1606,7 +1607,8 @@ def test_an_upstream_error_that_quotes_the_request_does_not_put_it_in_the_log(r,
 
 def test_health_capabilities_follow_the_chain(r, db, fake_cli, client, monkeypatch):
     def caps():
-        return client.get("/health", headers=AUTH).json()["capabilities"]
+        # What the engines can do. "send_id" is the relay's own (it keeps send ids) and is always there.
+        return [c for c in client.get("/health", headers=AUTH).json()["capabilities"] if c != "send_id"]
 
     assert caps() == ["create_chat", "edit", "react", "reply", "unsend"]           # BlueBubbles + the tool
     monkeypatch.setattr(r, "IMESSAGE_CLI_BIN", None)
@@ -1630,7 +1632,8 @@ def test_health_is_additive_and_says_nothing_new_without_the_token(r, client):
     assert body["protocol"] == 1                                                   # additive: no bump
     assert body["engines"] == ["bluebubbles", "applescript"]
     assert body["capabilities"] == sorted(body["capabilities"])
-    assert set(body["capabilities"]) <= {"react", "reply", "create_chat", "unsend", "edit"}
+    assert set(body["capabilities"]) <= {"react", "reply", "create_chat", "unsend", "edit", "send_id"}
+    assert "send_id" in body["capabilities"]                                       # the relay's own: it keeps send ids
     for kw in ({}, {"headers": {"X-Imsg-Token": "wrong"}}):
         assert client.get("/health", **kw).json() == {"ok": True}
 

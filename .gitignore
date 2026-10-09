@@ -5,6 +5,8 @@ fcm-key.json
 # runtime state, logs, caches
 relay_state.json
 relay_state.bak
+send_ids.json
+send_ids.json.*
 *.log
 *.err
 heic_cache/

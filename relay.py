@@ -26,6 +26,7 @@ import asyncio
 import collections
 import contextlib
 import difflib
+import hashlib
 import hmac
 import ipaddress
 import json
@@ -346,7 +347,8 @@ from engines.applescript import (  # kept under their old names: tests and tools
     _AS_FILE, _AS_TEXT, OUTBOX, AppleScriptEngine, _applescript, _guid_variants)
 from engines.bluebubbles import BlueBubblesEngine
 import engines.imessage_cli as imessage_cli_engine  # accessibility_trusted is looked up there at call time
-from engines.chain import IMESSAGE_PROBE_GUID
+from engines.base import SendResult
+from engines.chain import IMESSAGE_PROBE_GUID, MAYBE_SENT
 from engines.imessage_cli import CHECKED_VERSION as IMESSAGE_CLI_CHECKED
 from engines.imessage_cli import OFF_VALUES as IMESSAGE_CLI_OFF
 from engines.imessage_cli import ImessageCliEngine
@@ -1518,7 +1520,7 @@ def _tighten_files() -> None:
     what it wrote before is brought in line: the state holds push
     registrations, the caches hold attachments."""
     os.umask(0o077)
-    for path, mode in ((STATE_PATH, 0o600), (STATE_PATH.with_suffix(".bak"), 0o600),
+    for path, mode in ((STATE_PATH, 0o600), (STATE_PATH.with_suffix(".bak"), 0o600), (SEND_IDS.path, 0o600),
                        (HEIC_CACHE, 0o700), (AUDIO_CACHE, 0o700), (ICON_CACHE, 0o700)):
         with contextlib.suppress(Exception):
             if path.exists():
@@ -1642,7 +1644,9 @@ def health(request: Request):
     return {"ok": True, "cursor": cursor, "contacts": len(CONTACTS),
             "self": SELF_RAW, "bb_reachable": bb,
             "engines": engine_names(chain), "features": FEATURES, "protocol": PROTOCOL,
-            "capabilities": imessage_capabilities(chain)}
+            # "send_id": /send and /create_chat keep an id the client sends (client_id) and do
+            # not send the same one twice. A client may rely on that only where it is named.
+            "capabilities": sorted(imessage_capabilities(chain) + ["send_id"])}
 
 
 @app.get("/contacts")
@@ -2828,6 +2832,7 @@ def thread_media(chat_guid: str):
 class CreateChatReq(BaseModel):
     addresses: list[str]
     text: str
+    client_id: str | None = None
 
 
 class MatchChatReq(BaseModel):
@@ -2869,22 +2874,33 @@ async def create_chat(req: CreateChatReq):
     if not addrs or not req.text.strip():
         raise HTTPException(400, "addresses and text required")
 
-    conn = db()
-    try:
-        found = find_chat_for_addresses(conn, addrs)
-    finally:
-        conn.close()
-    if found:
-        guid = found["chat_guid"]
-        await deliver(_chain(), Capability.TEXT, guid, req.text)
-        print(f"[create] reused existing chat {guid} for {addrs}")
-        return {"ok": True, "chat_guid": guid}
+    def existing():
+        conn = db()
+        try:
+            return find_chat_for_addresses(conn, addrs)
+        finally:
+            conn.close()
 
-    # Only an engine with CREATE_CHAT (BlueBubbles) can start a chat: none
-    # configured -> 501, an upstream error -> passed through with its status.
-    guid = (await deliver(_chain(), Capability.CREATE_CHAT, None, addrs, req.text)).payload
-    print(f"[create] new chat {guid} -> {addrs}")
-    return {"ok": True, "chat_guid": guid}
+    async def run():
+        found = existing()
+        if found:
+            guid = found["chat_guid"]
+            res = await deliver(_chain(), Capability.TEXT, guid, req.text)
+            print(f"[create] reused existing chat {guid} for {addrs}")
+            return {"ok": True, "chat_guid": guid}, res.via
+        # Only an engine with CREATE_CHAT (BlueBubbles) can start a chat: none
+        # configured -> 501, an upstream error -> passed through with its status.
+        res = await deliver(_chain(), Capability.CREATE_CHAT, None, addrs, req.text)
+        print(f"[create] new chat {res.payload} -> {addrs}")
+        return {"ok": True, "chat_guid": res.payload}, res.via
+
+    def again(rec):
+        # Where the conversation is now, looked up afresh: the id file keeps no recipient.
+        found = existing()
+        return {"chat_guid": found["chat_guid"] if found else None}
+
+    # The same people in another order are the same conversation.
+    return await _send_once(req.client_id, _send_fingerprint("create_chat", sorted(addrs), req.text), run, again)
 
 
 # ---------- send-engine chain (engines/) ----------
@@ -2931,10 +2947,216 @@ async def _delivery_error(request: Request, exc: DeliveryError):
     return JSONResponse({"detail": exc.detail}, status_code=exc.status)
 
 
+# ---------- send ids: one send is one message, however often its request arrives ----------
+# The relay could not tell a repeated request from a second message, so a text
+# that had gone out and was sent "again" after an answer that never arrived
+# went out twice. A text send may carry an id the client chose (`client_id`,
+# on /send and /create_chat). The id is written down before any engine is
+# asked, and what became of the send when it ends. A request whose id is
+# known is answered from that and, unless the first try certainly failed,
+# nothing is sent. Voice and attachments carry no id and are as they were.
+
+#: How long an id is remembered, and how many at most (the oldest go first).
+SEND_ID_KEEP_SECONDS = 48 * 3600
+SEND_ID_MAX = 2000
+_SEND_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
+_SEND_STATES = ("started", "delivered", "failed", "unknown")
+
+
+class SendIds:
+    """The ids of text sends and what became of each, in a file beside the
+    state file: per id a fingerprint of the message (so that an id cannot
+    stand for two), a state, a time, and for a delivered send its path. No
+    text and no recipient.
+
+    States: ``started`` (written before any engine is asked), ``delivered``,
+    ``failed`` (certainly not sent: it may be sent again under the same id)
+    and ``unknown``. A ``started`` that this process did not write itself was
+    begun by a process that never said how it ended: it reads as ``unknown``.
+
+    Every change is on disk (fsync) before the call returns. A file that
+    cannot be read raises ``OSError`` and is tried again at the next call:
+    "not readable" is not "nothing known". A file that is not a list of ids
+    is put aside and said so; the ids in it are then no longer recognised."""
+
+    def __init__(self, path, clock=time.time):
+        self.path = Path(path)
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._known: dict | None = None
+        self._own: set = set()
+
+    def _read(self) -> dict:
+        if self._known is None:
+            try:
+                text = self.path.read_text()
+            except FileNotFoundError:
+                self._known = {}
+                return self._known
+            try:
+                data = json.loads(text)
+                if not isinstance(data, dict):
+                    raise ValueError("not an object")
+                self._known = {k: v for k, v in data.items()
+                               if isinstance(k, str) and isinstance(v, dict)
+                               and v.get("state") in _SEND_STATES and isinstance(v.get("fp"), str)}
+            except ValueError:
+                aside = self.path.with_name(f"{self.path.name}.damaged-{time.strftime('%Y%m%d-%H%M%S')}")
+                with contextlib.suppress(OSError):
+                    self.path.replace(aside)
+                print(f"[send] {self.path.name} did not hold send ids: kept as {aside.name}, starting empty "
+                      "(a send made before now is no longer recognised if its request comes again)")
+                self._known = {}
+        return self._known
+
+    def _write(self) -> None:
+        known = self._known
+        cutoff = self._clock() - SEND_ID_KEEP_SECONDS
+        for sid in [s for s, rec in known.items() if rec.get("at", 0) < cutoff and s not in self._own]:
+            del known[sid]
+        if len(known) > SEND_ID_MAX:
+            oldest = sorted((s for s in known if s not in self._own), key=lambda s: known[s].get("at", 0))
+            for sid in oldest[: len(known) - SEND_ID_MAX]:
+                del known[sid]
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(json.dumps(known))
+                f.flush()
+                os.fsync(f.fileno())
+            tmp.replace(self.path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
+            raise
+
+    def look(self, sid: str) -> dict | None:
+        with self._lock:
+            rec = self._read().get(sid)
+            if rec is None:
+                return None
+            rec = dict(rec)
+            if rec["state"] == "started" and sid not in self._own:
+                rec["state"] = "unknown"
+            return rec
+
+    def begin(self, sid: str, fingerprint: str) -> None:
+        """On disk when this returns, before any engine is asked."""
+        with self._lock:
+            known = self._read()
+            before = known.get(sid)
+            known[sid] = {"fp": fingerprint, "state": "started", "at": self._clock()}
+            self._own.add(sid)
+            try:
+                self._write()
+            except BaseException:
+                self._own.discard(sid)
+                if before is None:
+                    known.pop(sid, None)
+                else:
+                    known[sid] = before
+                raise
+
+    def finish(self, sid: str, state: str, via: str | None = None) -> None:
+        with self._lock:
+            rec = self._read().get(sid)
+            if rec is None:
+                return
+            rec["state"] = state
+            if via:
+                rec["via"] = via
+            self._own.discard(sid)
+            self._write()
+
+
+SEND_IDS = SendIds(STATE_PATH.with_name("send_ids.json"))
+#: client_id -> a future that ends when the request working on that id has ended.
+_SENDS_IN_FLIGHT: dict = {}
+
+
+def _send_fingerprint(*parts) -> str:
+    """What an id stands for, without keeping it: the route, the chat or the recipients, the text."""
+    return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode()).hexdigest()[:32]
+
+
+def _send_state_for(status: int) -> str:
+    """What an answer of the relay's says about a send. 4xx and 501 refuse it
+    before any engine could have sent: certainly not sent. Everything else
+    (the relay's own 502 included, which the app already reads as "may have
+    been sent") leaves it open."""
+    return "failed" if 400 <= status < 500 or status == 501 else "unknown"
+
+
+async def _send_once(client_id, fingerprint: str, run, again):
+    """One send per id. ``run()`` sends and returns ``(reply, via)``;
+    ``again(record)`` gives what a repeat of a delivered send is answered with.
+
+    Without an id: ``run()``, as it always was. With one: a request whose id
+    is still being worked on waits for that request and is then answered like
+    any repeat; a delivered send is answered ``ok`` with ``duplicate`` and not
+    sent; a send whose outcome is not known (it ended without an answer, or
+    the relay stopped in the middle of it) is refused with 409 and never sent
+    under this id again; a send that certainly failed is sent."""
+    if client_id is None:
+        return (await run())[0]
+    if not isinstance(client_id, str) or not _SEND_ID.fullmatch(client_id):
+        raise HTTPException(400, "client_id has to be 8 to 64 letters, digits, '-' or '_'")
+    while client_id in _SENDS_IN_FLIGHT:
+        await asyncio.wait({_SENDS_IN_FLIGHT[client_id]})
+    mine = asyncio.get_running_loop().create_future()
+    _SENDS_IN_FLIGHT[client_id] = mine          # no await between the check above and this line
+    try:
+        try:
+            rec = await asyncio.to_thread(SEND_IDS.look, client_id)
+            if rec is not None:
+                if rec["fp"] != fingerprint:
+                    raise HTTPException(409, {"code": "send_id_reused",
+                                              "message": "this send id belongs to another message"})
+                if rec["state"] == "delivered":
+                    print("[send] a repeated request for a delivered send was answered without sending")
+                    return {**again(rec), "ok": True, "duplicate": True}
+                if rec["state"] != "failed":
+                    print("[send] a repeated request was refused: what became of its first try is not known")
+                    raise HTTPException(409, {"code": "send_outcome_unknown", "message": MAYBE_SENT})
+            await asyncio.to_thread(SEND_IDS.begin, client_id, fingerprint)
+        except OSError as e:
+            # Not sent: without the ids nobody could say later whether it was.
+            print(f"[send] the send ids cannot be read or written ({type(e).__name__}) — a send that carries an id is not made")
+            raise HTTPException(503, {"code": "send_ids_unavailable",
+                                      "message": "the relay cannot keep track of sends right now: nothing was sent"})
+        state, via = None, None
+        try:
+            reply, via = await run()
+            state = "delivered"
+            return reply
+        except DeliveryError as e:
+            state = _send_state_for(e.status)
+            raise
+        except HTTPException as e:
+            state = _send_state_for(e.status_code)
+            raise
+        except Exception:
+            state = "unknown"
+            raise
+        finally:
+            # Anything else that ends the request (it was cancelled, the relay
+            # is stopping) leaves the id as "started", which reads as unknown.
+            if state is not None:
+                try:
+                    await asyncio.to_thread(SEND_IDS.finish, client_id, state, via)
+                except Exception as e:
+                    print(f"[send] what became of a send could not be written ({type(e).__name__}): it reads as unknown after a restart")
+    finally:
+        _SENDS_IN_FLIGHT.pop(client_id, None)
+        mine.set_result(None)
+
+
 class SendReq(BaseModel):
     chat_guid: str
     text: str
     reply_to_guid: str | None = None
+    client_id: str | None = None
 
 
 async def deliver_text(chat_guid: str, text: str, reply_to_guid: str | None = None):
@@ -2953,7 +3175,12 @@ async def deliver_text(chat_guid: str, text: str, reply_to_guid: str | None = No
 
 @app.post("/send")
 async def send(req: SendReq):
-    return await deliver_text(req.chat_guid, req.text, req.reply_to_guid)
+    async def run():
+        body = await deliver_text(req.chat_guid, req.text, req.reply_to_guid)
+        return body, body.get("via")
+
+    return await _send_once(req.client_id, _send_fingerprint("send", req.chat_guid, req.text, req.reply_to_guid),
+                            run, lambda rec: {"via": rec.get("via")})
 
 
 @app.post("/send_attachment")
