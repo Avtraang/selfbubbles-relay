@@ -229,9 +229,23 @@ def chat_meta(chat_guid: str) -> tuple[str, bool] | None:
     return _chat_meta.get(chat_guid)
 
 
-#: Chats whose kind was asked of the chat listing because no listing had shown
-#: them yet: each is asked about once, not at every read of its messages.
-_kind_asked: set[str] = set()
+#: How long reading a chat waits for the listing that says what kind of chat it
+#: is. The messages are in hand by then, so a Beeper that is slow to list must
+#: not hold them back until the app has given up on the page (it waits ten seconds).
+KIND_LOOKUP_SECONDS = 3.0
+#: A chat the listing did not show (the listing failed, or does not hold the
+#: chat) is asked about again after this long, not at every read.
+KIND_ASK_AGAIN_SECONDS = 60.0
+
+#: Chat guid -> when the listing was last asked on its behalf (see _now).
+_kind_asked: dict[str, float] = {}
+#: The listing started for a chat no listing had shown, while it is out: a
+#: second reader of that chat waits for the same one. Told "not a group" at
+#: once, its page would be the one the app keeps.
+_kind_listing: asyncio.Task | None = None
+#: Held until done: a listing that outlives the read that started it is not dropped half way.
+_kind_listings: set = set()
+_now = time.monotonic
 
 
 def _listed_as_group(chat_guid: str) -> bool:
@@ -243,12 +257,29 @@ def _listed_as_group(chat_guid: str) -> bool:
 async def _is_group(chat_guid: str) -> bool:
     """Whether the chat is a group, for marking its messages: the app names the
     sender above a message only in a group. The answer is the chat listing's.
+
     A chat no listing has shown yet (the relay has just started, or the chat is
-    new) is looked up by listing once. One the listing does not hold, or a
-    listing that fails, leaves the messages unmarked, like a one-to-one chat's."""
-    if chat_guid not in _chat_meta and chat_guid not in _kind_asked:
-        _kind_asked.add(chat_guid)
-        await fetch_threads(200)
+    new) is looked up by listing. Readers that arrive while that listing is out
+    wait for the same one. Nobody waits longer than KIND_LOOKUP_SECONDS: the
+    listing goes on behind the read, and what it says is there for the next
+    one. A chat the listing did not show leaves the messages unmarked, like a
+    one-to-one chat's, and is asked about again after KIND_ASK_AGAIN_SECONDS."""
+    global _kind_listing
+    if chat_guid not in _chat_meta:
+        loop = asyncio.get_running_loop()
+        task = _kind_listing
+        out = task is not None and not task.done() and task.get_loop() is loop
+        asked = _kind_asked.get(chat_guid)
+        if out or asked is None or _now() - asked >= KIND_ASK_AGAIN_SECONDS:
+            if not out:
+                task = _kind_listing = loop.create_task(fetch_threads(200))
+                _kind_listings.add(task)
+                task.add_done_callback(_kind_listings.discard)
+            _kind_asked[chat_guid] = _now()
+            try:
+                await asyncio.wait_for(asyncio.shield(task), KIND_LOOKUP_SECONDS)
+            except asyncio.TimeoutError:
+                pass
     return _listed_as_group(chat_guid)
 
 
@@ -280,9 +311,12 @@ def chat_to_thread(c: dict) -> dict:
     # A group is never titled with one member's name alone: that is how a
     # one-to-one chat with that member looks.
     members = (", ".join(names[:4]) + (f" +{more}" if more > 0 else "")) if (len(names) > 1 or (names and more > 0)) else ""
+    # What the chat is called, in the list and in a notification alike. A group
+    # that has no name of its own is its members: under one member's name it
+    # would look like the one-to-one chat with that member.
+    shown = ((c.get("title") or "").strip() or members or "Group chat") if is_group else title
     if c.get("type") in ("group", "single") or is_group:
-        _chat_meta[PREFIX + local] = (
-            ((c.get("title") or "").strip() or members or "Group chat") if is_group else title, is_group)
+        _chat_meta[PREFIX + local] = (shown, is_group)
     else:
         _chat_meta.pop(PREFIX + local, None)      # the kind is not known: say nothing rather than "not a group"
     # Not the watcher's watermark (_chat_last): this listing may be the app
@@ -291,7 +325,7 @@ def chat_to_thread(c: dict) -> dict:
     last_date = _ts_to_unix(c.get("lastActivity")) or 0.0
     return {
         "chat_guid": PREFIX + local,
-        "chat_name": title,
+        "chat_name": shown,
         "is_group": is_group,
         # Names only — Beeper gives display names, not phone numbers, so the
         # contact-photo pipeline can't match these. Empty handles => initials.

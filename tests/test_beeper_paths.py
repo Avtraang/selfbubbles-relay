@@ -73,7 +73,8 @@ def api(monkeypatch):
 
     monkeypatch.setattr(beeper.httpx, "AsyncClient", client)
     monkeypatch.setattr(beeper, "_enabled", True)
-    monkeypatch.setattr(beeper, "_kind_asked", set())                 # no test inherits what another asked about
+    monkeypatch.setattr(beeper, "_kind_asked", {})                    # no test inherits what another asked about
+    monkeypatch.setattr(beeper, "_kind_listing", None, raising=False)
     monkeypatch.setattr(beeper, "BEEPER_TOKEN", STUB_BEEPER_TOKEN)
     monkeypatch.setattr(beeper, "BEEPER_URL", "http://beeper.invalid:23373")
     return Api

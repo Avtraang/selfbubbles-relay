@@ -961,8 +961,18 @@ _state_lock = threading.Lock()
 def save_state(**updates):
     # Serialized + atomic: a partial/concurrent write can't corrupt the file
     # and wipe pins/archives (which is exactly what happened before).
+    _change_state(lambda st: st.update(updates))
+
+
+def _change_state(change) -> None:
+    """Read the state, let `change(st)` alter it, and write it, as one step
+    under the lock: two changes cannot each read the file and then write over
+    the other. A `change` that returns False left the state as it was, and
+    nothing is written. The lock is not re-entrant: `change` must not save."""
     with _state_lock:
         st, damaged = _read_state()
+        if change(st) is False:
+            return
         bak = STATE_PATH.with_suffix(".bak")
         if damaged:
             # Neither file is a state. Writing now would replace both with an
@@ -975,7 +985,6 @@ def save_state(**updates):
                         path.replace(path.with_name(f"{path.name}.damaged-{stamp}"))
             print(f"[state] {STATE_PATH.name} and its backup were unreadable: kept as *.damaged-{stamp}, "
                   "starting from an empty state (pins, read marks and push registrations start over)")
-        st.update(updates)
         blob = json.dumps(st)
         tmp = STATE_PATH.with_suffix(".tmp")
         try:
@@ -1061,8 +1070,38 @@ def push_tokens() -> set:
     return set(load_state().get("push_tokens", []))
 
 
-def save_tokens(tokens: set):
-    save_state(push_tokens=sorted(tokens))
+def add_token(token: str) -> tuple[int, bool]:
+    """Register a device: read, add and write in one step, so a registration
+    that arrives while another change is being written is not lost. Returns
+    how many are registered and whether this one is new; a device that is
+    already registered writes nothing."""
+    seen = {"count": 0, "new": False}
+
+    def change(st):
+        tokens = set(st.get("push_tokens", []))
+        seen["new"] = token not in tokens
+        seen["count"] = len(tokens | {token})
+        if not seen["new"]:
+            return False
+        st["push_tokens"] = sorted(tokens | {token})
+
+    _change_state(change)
+    return seen["count"], seen["new"]
+
+
+def remove_tokens(dead) -> None:
+    """Drop the registrations Firebase reported as gone from what is on file
+    now, not from the set a push read before it asked Firebase: a device that
+    registered in between stays registered."""
+    dead = set(dead)
+
+    def change(st):
+        tokens = set(st.get("push_tokens", []))
+        if not tokens & dead:
+            return False
+        st["push_tokens"] = sorted(tokens - dead)
+
+    _change_state(change)
 
 
 def attachment_label(atts):
@@ -1185,7 +1224,7 @@ def send_push(msg: dict):
             print(f"[fcm] send error: {e}")
     if dead and fresh:
         with contextlib.suppress(OSError):
-            save_tokens(tokens - set(dead))
+            remove_tokens(dead)
             print(f"[fcm] pruned {len(dead)} dead token(s)")
 
 
@@ -1606,12 +1645,10 @@ class PushReq(BaseModel):
 
 @app.post("/register_push")
 def register_push(req: PushReq):
-    tokens = push_tokens()
-    if req.token not in tokens:
-        tokens.add(req.token)
-        save_tokens(tokens)
-        print(f"[fcm] registered device token ({len(tokens)} total)")
-    return {"ok": True, "count": len(tokens)}
+    count, new = add_token(req.token)
+    if new:
+        print(f"[fcm] registered device token ({count} total)")
+    return {"ok": True, "count": count}
 
 
 @app.get("/health")
@@ -3843,7 +3880,7 @@ def send_facetime_push(event: str, uuid: str, caller: str, caller_name: str,
         except Exception as e:
             print(f"[facetime] fcm send error: {e}")
     if dead:
-        save_tokens(tokens - set(dead))
+        remove_tokens(dead)
         print(f"[facetime] pruned {len(dead)} dead token(s)")
 
 
