@@ -97,6 +97,7 @@ def world(relay_module, monkeypatch):
     monkeypatch.setattr(bp, "refresh_portal_types", no_portal_types)
     for name in ("_chat_last", "_chatid_to_local", "_seen_msg_ids", "_chat_meta"):
         monkeypatch.setattr(bp, name, {}, raising=False)
+    monkeypatch.setattr(bp, "_kind_asked", set(), raising=False)
     for name, value in (("_seeded", False), ("_mark", 0.0)):          # a freshly started process
         monkeypatch.setattr(bp, name, value, raising=False)
 

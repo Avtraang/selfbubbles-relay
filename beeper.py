@@ -229,6 +229,29 @@ def chat_meta(chat_guid: str) -> tuple[str, bool] | None:
     return _chat_meta.get(chat_guid)
 
 
+#: Chats whose kind was asked of the chat listing because no listing had shown
+#: them yet: each is asked about once, not at every read of its messages.
+_kind_asked: set[str] = set()
+
+
+def _listed_as_group(chat_guid: str) -> bool:
+    """Whether Beeper's chat listing called this chat a group; False for a chat it has not shown."""
+    meta = _chat_meta.get(chat_guid)
+    return bool(meta and meta[1])
+
+
+async def _is_group(chat_guid: str) -> bool:
+    """Whether the chat is a group, for marking its messages: the app names the
+    sender above a message only in a group. The answer is the chat listing's.
+    A chat no listing has shown yet (the relay has just started, or the chat is
+    new) is looked up by listing once. One the listing does not hold, or a
+    listing that fails, leaves the messages unmarked, like a one-to-one chat's."""
+    if chat_guid not in _chat_meta and chat_guid not in _kind_asked:
+        _kind_asked.add(chat_guid)
+        await fetch_threads(200)
+    return _listed_as_group(chat_guid)
+
+
 #: Chat guid -> how many of its messages Beeper's chat listing last called
 #: unread; None where the listing did not say (or said something that is not a
 #: count). The watcher announces what it missed only where this is above zero.
@@ -373,8 +396,7 @@ async def fetch_messages(chat_guid: str, limit: int = 50,
             print(f"[beeper] fetch_messages({chat_guid}) failed: {e}")
             return []
     items = data.get("items", [])
-    # Group-ness: infer from participants once, cheaply, via the chat object.
-    is_group = False
+    is_group = await _is_group(chat_guid)
     # Beeper returns newest-first; the app wants oldest-first like chat.db.
     msgs = [msg_to_dict(m, chat_guid, is_group) for m in items]
     msgs.reverse()
@@ -574,7 +596,7 @@ async def _recent(chat_guid: str, limit: int) -> list[dict] | None:
             print(f"[beeper] reading what was missed failed ({type(e).__name__})")
             return None
     items = [m for m in data.get("items", []) if isinstance(m, dict) and m.get("id")]
-    return [msg_to_dict(m, chat_guid, False) for m in reversed(items)]
+    return [msg_to_dict(m, chat_guid, _listed_as_group(chat_guid)) for m in reversed(items)]
 
 
 async def _catch_up(on_message, since, on_mark) -> None:
@@ -729,7 +751,7 @@ async def watch(on_message, since: float | None = None, on_mark=None):
                             continue
                         local = await _resolve_local(chat_id)
                         guid = PREFIX + str(local)
-                        d = msg_to_dict(msg, guid, False)
+                        d = msg_to_dict(msg, guid, _listed_as_group(guid))
                         is_new = _is_news(d, etype == "message.upserted")
                         if is_new:
                             pushed += 1

@@ -73,6 +73,7 @@ def api(monkeypatch):
 
     monkeypatch.setattr(beeper.httpx, "AsyncClient", client)
     monkeypatch.setattr(beeper, "_enabled", True)
+    monkeypatch.setattr(beeper, "_kind_asked", set())                 # no test inherits what another asked about
     monkeypatch.setattr(beeper, "BEEPER_TOKEN", STUB_BEEPER_TOKEN)
     monkeypatch.setattr(beeper, "BEEPER_URL", "http://beeper.invalid:23373")
     return Api
@@ -97,7 +98,9 @@ def test_an_id_that_is_not_one_path_segment_is_refused(guid):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("guid, cid", sorted(REAL.items()))
-def test_real_ids_reach_the_same_paths_as_before(api, guid, cid):
+def test_real_ids_reach_the_same_paths_as_before(api, monkeypatch, guid, cid):
+    # A chat the listing has shown: reading one it has not shown asks the listing once (test_gm_group_sender).
+    monkeypatch.setitem(beeper._chat_meta, guid, ("Stand In", False))
     assert sync(beeper.send(guid, "synthetic text")) is True
     assert sync(beeper.fetch_messages(guid, limit=50)) == []
     assert sync(beeper.mark_read(guid)) is True
@@ -148,7 +151,8 @@ def test_the_routes_that_take_a_chat_guid_cannot_reach_another_endpoint(api, cli
     assert api.seen == []
 
 
-def test_the_search_route_still_reads_a_real_beeper_chat(api, client):
+def test_the_search_route_still_reads_a_real_beeper_chat(api, client, monkeypatch):
+    monkeypatch.setitem(beeper._chat_meta, "bp:401", ("Stand In", False))    # a chat the listing has shown
     api.body = {"items": [{"id": "m1", "text": "a synthetic needle", "timestamp": "2026-01-02T03:04:05Z",
                            "isSender": False, "senderName": "Stand In"}]}
     resp = client.get("/search", params={"q": "needle", "chat": "bp:401"}, headers=AUTH)
