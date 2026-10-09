@@ -215,7 +215,7 @@ def test_the_voice_routes_still_read_their_fields_from_the_query_string(r5, monk
     seen = []
     monkeypatch.setattr(r5, "resolve_assistant", lambda q: (seen.append(q), ("not_found", [], ""))[1])
     client = TestClient(r5.app)
-    resp = client.get("/v/prepare", params={"q": "text Quokka the door code is 4821-ZEBRA", "token": STUB_TOKEN})
+    resp = client.post("/v/prepare", params={"q": "text Quokka the door code is 4821-ZEBRA", "token": STUB_TOKEN})
     assert resp.status_code == 200 and seen == ["text Quokka the door code is 4821-ZEBRA"]
 
 

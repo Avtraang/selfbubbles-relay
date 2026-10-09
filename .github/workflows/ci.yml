@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # main is the published line. A branch under ci/ is a candidate pushed only to be
+    # tested here before main moves; nothing else reads it.
+    branches: [main, "ci/**"]
   pull_request:
 
 permissions:

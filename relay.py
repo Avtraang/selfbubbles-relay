@@ -23,6 +23,7 @@ startup_refusal().
 """
 
 import asyncio
+import collections
 import contextlib
 import difflib
 import hmac
@@ -1030,6 +1031,11 @@ FORCED_UNREAD: set = set(load_state().get("forced_unread", []))
 # ---------- push notifications (FCM) ----------
 
 FCM_READY = False
+#: Firebase's own limit for one attempt. The library's default is two minutes;
+#: nothing here is worth waiting that long for, and the next notification
+#: waits behind this one. The library tries once more after a timeout, so a
+#: Firebase that does not answer costs twice this per registered phone.
+PUSH_TIMEOUT_SECONDS = 10
 
 
 def init_fcm():
@@ -1042,7 +1048,7 @@ def init_fcm():
         return
     try:
         cred = fb_credentials.Certificate(os.path.expanduser(FCM_CREDS))
-        firebase_admin.initialize_app(cred)
+        firebase_admin.initialize_app(cred, options={"httpTimeout": PUSH_TIMEOUT_SECONDS})
         FCM_READY = True
         print("[fcm] initialized — push enabled")
     except Exception as e:
@@ -1181,11 +1187,61 @@ def send_push(msg: dict):
             print(f"[fcm] pruned {len(dead)} dead token(s)")
 
 
+class PushLane:
+    """Hands work to Firebase one piece at a time and in order, without the
+    caller waiting for it. Receiving a message must not wait for its
+    notification: a push that hangs used to hold up every message behind it,
+    the frames for an open app included."""
+
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.waiting: collections.deque = collections.deque()
+        self.worker = None
+
+    def put(self, fn, *args) -> None:
+        while len(self.waiting) >= self.limit:
+            self.waiting.popleft()
+            print("[fcm] too many notifications waiting — the oldest gave way")
+        self.waiting.append((fn, args))
+        loop = asyncio.get_running_loop()
+        if self.worker is None or self.worker.done() or self.worker.get_loop() is not loop:
+            self.worker = loop.create_task(self._run())
+
+    async def _run(self) -> None:
+        while self.waiting:
+            fn, args = self.waiting.popleft()
+            try:
+                await asyncio.to_thread(fn, *args)
+            except Exception as e:
+                print(f"[fcm] push failed ({type(e).__name__})")
+
+    def idle(self) -> bool:
+        return not self.waiting and (self.worker is None or self.worker.done())
+
+
+PUSH_QUEUE_MAX = 200
+MESSAGE_PUSHES = PushLane(PUSH_QUEUE_MAX)
+#: A FaceTime ring does not wait behind message notifications.
+CALL_PUSHES = PushLane(20)
+
+
+def queue_push(msg: dict) -> None:
+    """The notification for a received message: queued, sent behind the caller's back."""
+    MESSAGE_PUSHES.put(send_push, msg)
+
+
 # ---------- ws hub ----------
+
+#: How long one connected app may take to accept a frame. A phone that went
+#: out of reach without closing its connection takes nothing; waiting for it
+#: without a limit stopped the loop that reads new messages.
+HUB_SEND_SECONDS = 5.0
+
 
 class Hub:
     def __init__(self):
         self.clients = set()
+        self._closing = set()
 
     async def connect(self, ws):
         await ws.accept(); self.clients.add(ws)
@@ -1194,14 +1250,27 @@ class Hub:
         self.clients.discard(ws)
 
     async def broadcast(self, payload):
-        dead = []
-        for ws in list(self.clients):
-            try:
-                await ws.send_json(payload)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
+        clients = list(self.clients)
+        if clients:
+            # All at once: one client that is slow does not delay the others.
+            await asyncio.gather(*(self._send(ws, payload) for ws in clients))
+
+    async def _send(self, ws, payload):
+        try:
+            await asyncio.wait_for(ws.send_json(payload), HUB_SEND_SECONDS)
+        except Exception:               # gone, or took longer than the limit
             self.drop(ws)
+            # Closed, not only forgotten: an app that is merely slow must
+            # notice, reconnect and reload, instead of sitting on a connection
+            # nothing is sent to any more. Behind the caller's back, since
+            # closing a connection that takes nothing can hang as well.
+            task = asyncio.get_running_loop().create_task(self._close(ws))
+            self._closing.add(task)
+            task.add_done_callback(self._closing.discard)
+
+    async def _close(self, ws):
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(ws.close(code=1011), HUB_SEND_SECONDS)
 
 
 hub = Hub()
@@ -1368,18 +1437,26 @@ async def poll_loop():
             new = await asyncio.to_thread(fetch_new, cursor)
             if new:
                 link_need = await asyncio.to_thread(enrich_links, new)
-                for msg in new:
-                    if msg["text"] is None and not msg["attachments"]:
-                        print(f"[poll] ROWID {msg['rowid']} no text/att "
-                              f"(assoc_type={msg['assoc_type']}) — hardening candidate")
-                    await hub.broadcast({"type": "message", "data": msg})
-                    if (not msg["is_from_me"]
-                            and (msg["assoc_type"] or 0) < 2000
-                            and (msg["text"] or msg["attachments"])):
-                        await asyncio.to_thread(send_push, msg)
-                # only now: an "update" must never overtake its own "message"
-                schedule_link_resolves(link_need)
-                cursor = new[-1]["rowid"]; save_cursor(cursor)
+                passed = set()
+                try:
+                    for msg in new:
+                        if msg["text"] is None and not msg["attachments"]:
+                            print(f"[poll] ROWID {msg['rowid']} no text/att "
+                                  f"(assoc_type={msg['assoc_type']}) — hardening candidate")
+                        await hub.broadcast({"type": "message", "data": msg})
+                        if (not msg["is_from_me"]
+                                and (msg["assoc_type"] or 0) < 2000
+                                and (msg["text"] or msg["attachments"])):
+                            queue_push(msg)
+                        # The position moves with every row that was passed on:
+                        # whatever fails further down this round, this row is
+                        # not broadcast and notified a second time.
+                        passed.add(msg["rowid"])
+                        cursor = msg["rowid"]
+                        await asyncio.to_thread(save_cursor, cursor)
+                finally:
+                    # only now: an "update" must never overtake its own "message"
+                    schedule_link_resolves([n for n in link_need if n[1] in passed])
             edited, new_mark = await asyncio.to_thread(fetch_edited, edit_mark)
             if edited:
                 link_need = await asyncio.to_thread(enrich_links, edited)
@@ -1459,7 +1536,51 @@ async def _on_beeper_message(msg: dict, is_new: bool = True):
         return
     await hub.broadcast({"type": "message", "data": msg})
     if not msg.get("is_from_me") and (msg.get("text") or msg.get("attachments")):
-        await asyncio.to_thread(send_push, msg)
+        queue_push(msg)
+
+
+#: The newest Google Messages time the watcher has accounted for: as it last
+#: reported it, as last written to the state file, and the write in flight.
+_BEEPER_MARK = {"want": 0.0, "saved": 0.0, "task": None}
+
+
+def _beeper_since() -> float | None:
+    """The mark a previous run saved. With it the watcher announces what
+    arrived while the relay was not running; without one (a first start, or a
+    state file that cannot be read just now) it takes everything Beeper
+    already holds for history, which announces nothing old."""
+    try:
+        v = load_state().get("beeper_seen")
+    except OSError:
+        return None
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else None
+
+
+def _note_beeper_mark(when: float) -> None:
+    """The watcher's on_mark. Returns at once: the state file is written
+    behind it, and of several marks in a row the newest is the one saved."""
+    if when <= _BEEPER_MARK["want"]:
+        return
+    _BEEPER_MARK["want"] = when
+    loop = asyncio.get_running_loop()
+    task = _BEEPER_MARK["task"]
+    if task is None or task.done() or task.get_loop() is not loop:
+        _BEEPER_MARK["task"] = loop.create_task(_save_beeper_mark())
+
+
+async def _save_beeper_mark() -> None:
+    while _BEEPER_MARK["saved"] < _BEEPER_MARK["want"]:
+        want = _BEEPER_MARK["want"]
+        try:
+            await asyncio.to_thread(save_state, beeper_seen=want)
+        except Exception as e:
+            print(f"[beeper] the mark could not be saved ({type(e).__name__})")
+            return
+        _BEEPER_MARK["saved"] = want
+
+
+def _watch_beeper():
+    return beeper.watch(_on_beeper_message, since=_beeper_since(), on_mark=_note_beeper_mark)
 
 
 @app.on_event("startup")
@@ -1472,7 +1593,7 @@ async def _startup():
     _spawn("poll", poll_loop)
     if beeper.enabled():
         print("[beeper] enabled — watching Google Messages")
-        _spawn("beeper", lambda: beeper.watch(_on_beeper_message))
+        _spawn("beeper", _watch_beeper)
     else:
         print("[beeper] disabled (no BEEPER_TOKEN)")
 
@@ -2008,7 +2129,10 @@ async def assistant_confirm(request: Request):
 LAST_PENDING: dict = {}
 
 
-@app.api_route("/v/prepare", methods=["GET", "POST"])
+# POST only, like /assistant/*: a GET is what an address makes when anything
+# merely loads it (the image of a received link preview, a page in a browser),
+# and loading an address must never arm a message or send one.
+@app.post("/v/prepare")
 async def v_prepare(request: Request):
     LAST_PENDING.clear()          # first of all: whatever goes wrong below, the previous message is not left armed
     f = await read_fields(request, "query", "q")
@@ -2038,7 +2162,7 @@ async def v_prepare(request: Request):
     return PlainTextResponse(f"Did you mean {listed}? The message is: {text}. Say the full name, or say cancel.")
 
 
-@app.api_route("/v/confirm", methods=["GET", "POST"])
+@app.post("/v/confirm")
 async def v_confirm(request: Request):
     f = await read_fields(request, "answer", "a")
     p = dict(LAST_PENDING)
@@ -3520,14 +3644,16 @@ async def bb_event(request: Request):
     is_video = bool(data.get("is_video", True))
     if status == FT_STATUS_INCOMING:
         print(f"[facetime] incoming call {uuid} from {caller_name}")
-        send_facetime_push("incoming", uuid, caller, caller_name, is_video)
+        # Not on the event loop (a send that hangs stopped the whole relay),
+        # and not waited for: an open app rings from the frame below.
+        CALL_PUSHES.put(send_facetime_push, "incoming", uuid, caller, caller_name, is_video)
         await hub.broadcast({"type": "facetime", "data": {
             "event": "incoming", "uuid": uuid, "caller": caller,
             "caller_name": caller_name, "is_video": is_video,
         }})
     elif status == FT_STATUS_DISCONNECTED:
         print(f"[facetime] call {uuid} ended")
-        send_facetime_push("ended", uuid, caller, caller_name, is_video)
+        CALL_PUSHES.put(send_facetime_push, "ended", uuid, caller, caller_name, is_video)
         await hub.broadcast({"type": "facetime", "data": {
             "event": "ended", "uuid": uuid,
         }})

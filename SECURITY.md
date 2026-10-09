@@ -138,9 +138,10 @@ is 1: every request is answered WITHOUT authentication (a test on this Mac
 only)`, and the doctor's hint reads `running WITHOUT authentication`. Treat
 that mode as "every process on this Mac can read my messages and send as me"
 and use it only for a first local smoke test. That includes a web page open
-in a browser on the Mac: the voice routes accept plain GET requests
-(`/v/prepare?q=...`, then `/v/confirm?a=yes`), which any page can make a
-browser send to `127.0.0.1` without reading the answer, and the relay has no
+in a browser on the Mac: the voice routes take a plain form POST
+(`/v/prepare` with `query=...`, then `/v/confirm` with `answer=yes`), which
+any page can make a browser send to `127.0.0.1` without reading the answer,
+and the relay has no
 `Host` check against DNS rebinding. With a token set, such a page cannot
 authenticate. The smoke test means `curl http://127.0.0.1:8700/threads` on
 the Mac itself: the Android app cannot be used in this mode. It requires a
@@ -195,9 +196,9 @@ The same masking (`mask_token`) covers two more shapes:
   the request URL there would otherwise put the password in the log.
 - the whole query string of the voice routes (`/v/prepare`, `/v/confirm`,
   `/assistant/prepare`, `/assistant/confirm`). They read their fields from
-  the query string when an automation app calls them that way, so the access
+  the query string when an automation app posts them that way, so the access
   line would hold the dictated message; it is logged as
-  `"GET /v/prepare?*** HTTP/1.1"`.
+  `"POST /v/prepare?*** HTTP/1.1"`.
 
 Limits: the masking matches the **shapes** `token=<value>`,
 `password=<value>` and a voice route's query string, not the values

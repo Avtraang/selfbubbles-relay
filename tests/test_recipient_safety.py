@@ -114,7 +114,7 @@ def test_voice_yes_sends_to_the_person_that_was_read_back(client, bb, osa, compa
 
 def test_voice_confirm_without_any_answer_sends_nothing(client, bb, osa, compat_db):
     _prepare(client, f"text Alice Anders {TEXT}")
-    resp = client.get("/v/confirm", headers=AUTH)
+    resp = client.post("/v/confirm", headers=AUTH)
     assert (resp.status_code, resp.text) == (200, "Cancelled.")
     assert bb.calls == [] and osa.calls == []
 

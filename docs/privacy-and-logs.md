@@ -257,7 +257,7 @@ INFO:     203.0.113.7:0 - "GET /thread/iMessage%3B-%3B%2B15555550100/messages?li
 INFO:     203.0.113.7:0 - "GET /thread/any%3B-%3Bname%40example.com/messages?limit=50 HTTP/1.1" 200 OK
 INFO:     203.0.113.7:0 - "GET /search?q=dentist+appointment HTTP/1.1" 200 OK
 INFO:     203.0.113.7:0 - "GET /attachment/<attachment-guid>?f=jpg HTTP/1.1" 200 OK
-INFO:     203.0.113.7:0 - "GET /v/prepare?*** HTTP/1.1" 200 OK
+INFO:     203.0.113.7:0 - "POST /v/prepare?*** HTTP/1.1" 200 OK
 INFO:     127.0.0.1:52160 - "POST /bb_event?token=*** HTTP/1.1" 200 OK
 ```
 
@@ -282,11 +282,11 @@ What the lines mean in practice:
   compose field.
 - **A dictated message in the URL is masked.** The voice endpoints accept
   their fields as a JSON body, a form body or query parameters. Sent as
-  query parameters, by GET or POST, `/v/prepare?query=…` (or `q=`) and
+  query parameters of the POST, `/v/prepare?query=…` (or `q=`) and
   `/assistant/prepare?query=…` carry the whole spoken sentence, message
   text included, and `/v/confirm?answer=…` (or `a=`) the reply. The relay
   replaces the query string of these four routes before the line is
-  written: the log shows `"GET /v/prepare?*** HTTP/1.1"`, with no parameter
+  written: the log shows `"POST /v/prepare?*** HTTP/1.1"`, with no parameter
   names either. This holds for what the relay writes. Anything in front of
   it that keeps its own request log (a reverse proxy, a tunnel's dashboard,
   the automation app's history) still sees the URL, so if your automation
@@ -331,6 +331,7 @@ the previous version is kept as `relay_state.bak`, and is read back if
 | Key | Meaning | Personal? |
 | --- | --- | --- |
 | `last_rowid`, `last_edit`, `reads_baseline` | poll cursors into `chat.db` | no |
+| `beeper_seen` | the time of the newest Google Messages message the relay has accounted for (a number), so that a restart can tell what arrived meanwhile; see "Forget the Google Messages mark" below before returning from an older relay | no |
 | `reads` | `{chat_guid: rowid}`: the newest message you have read, per chat | chat identifiers |
 | `pins`, `archived`, `auto_translate`, `forced_unread` | lists of chat identifiers | chat identifiers |
 | `no_icon` | `{chat_guid: timestamp}`: groups known to have no photo | chat identifiers |
@@ -466,6 +467,26 @@ Nothing rotates on its own. Suggestions:
 
   The same steps are part of
   [rotating the token](../SECURITY.md#rotating-the-token).
+
+- **Forget the Google Messages mark** (`beeper_seen`) before you start this
+  relay again after an older one ran in its place (a rollback), or after
+  Google Messages was switched off for a while. Nothing moved the mark in
+  that time, so the first start would take every unread text that arrived in
+  between (up to six hours back, at most twenty) for one it had missed, and
+  announce it a second time. Without the mark the relay starts as on a first
+  run: what Beeper Desktop already holds is history, and only what arrives
+  from then on is announced. The relay has to be stopped for the edit:
+
+  ```sh
+  cd /path/to/selfbubbles-relay
+  launchctl bootout gui/$UID/org.selfbubbles.relay
+  sleep 2
+  venv/bin/python -c "import json,pathlib; p=pathlib.Path('relay_state.json'); s=json.loads(p.read_text()); s.pop('beeper_seen', None); p.write_text(json.dumps(s))"
+  rm -f relay_state.bak   # still holds the old mark, and is read if relay_state.json fails to parse
+  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/org.selfbubbles.relay.plist
+  ```
+
+  Going back to an older relay needs nothing: it ignores the mark.
 
 ## Redacting before you paste a log into an issue
 
