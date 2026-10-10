@@ -40,7 +40,11 @@ class BeeperEngine:
         return _bridge.is_beeper_guid(chat_guid)
 
     async def send_text(self, chat_guid: str, text: str,
-                        reply_to_guid: str | None = None) -> SendResult:
+                        reply_to_guid: str | None = None,
+                        effect: str | None = None) -> SendResult:
+        # ``effect`` is part of the engine interface and nothing more here:
+        # Google Messages has no send effects, and the relay answers 422 for
+        # an effect in a ``bp:`` chat before any engine is asked.
         # ``beeper.send`` is looked up at call time so a test can patch it.
         send = self._send if self._send is not None else _bridge.send
         ok = await send(chat_guid, text, reply_to_guid)

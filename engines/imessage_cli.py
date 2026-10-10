@@ -513,7 +513,8 @@ class ImessageCliEngine:
         raise Unsupported(self.name, Capability.UNSEND)
 
     async def send_text(self, chat_guid: str, text: str,
-                        reply_to_guid: str | None = None) -> SendResult:
+                        reply_to_guid: str | None = None,
+                        effect: str | None = None) -> SendResult:
         raise Unsupported(self.name, Capability.TEXT)
 
     async def send_attachment(self, chat_guid: str, name: str, content: bytes,

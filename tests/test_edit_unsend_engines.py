@@ -1098,12 +1098,12 @@ def test_every_engine_satisfies_the_protocol_and_refuses_what_it_cannot_do(tmp_p
 
 def test_imessage_capabilities_names_what_a_chain_can_do_beyond_sending(tmp_path):
     edit_engine = _engine(make_fake_cli(tmp_path), tmp_path)
-    assert [c.value for c in IMESSAGE_EXTRAS] == ["react", "reply", "create_chat", "unsend", "edit"]
+    assert [c.value for c in IMESSAGE_EXTRAS] == ["react", "reply", "create_chat", "unsend", "edit", "effect"]
     assert not BeeperEngine("t").handles(IMESSAGE_PROBE_GUID) and AppleScriptEngine().handles(IMESSAGE_PROBE_GUID)
     caps = lambda env, **kw: imessage_capabilities(build_chain(env, **kw))  # noqa: E731
     assert caps({}) == []                                            # AppleScript alone: plain sending
-    assert caps({"BB_PASSWORD": "x"}) == ["create_chat", "react", "reply", "unsend"]
-    assert caps({"BB_PASSWORD": "x"}, imessage_cli=edit_engine) == ["create_chat", "edit", "react", "reply", "unsend"]
+    assert caps({"BB_PASSWORD": "x"}) == ["create_chat", "effect", "react", "reply", "unsend"]
+    assert caps({"BB_PASSWORD": "x"}, imessage_cli=edit_engine) == ["create_chat", "edit", "effect", "react", "reply", "unsend"]
     assert caps({}, imessage_cli=edit_engine) == ["edit"]
     # Beeper can reply, but only in Google Messages chats: that is not an iMessage capability
     assert caps({"BEEPER_TOKEN": "t"}) == []

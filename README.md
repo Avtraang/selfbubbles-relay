@@ -92,6 +92,7 @@ The relay half of each row is keys in `.env` (or the LaunchAgent's `EnvironmentV
 | Inbox, live updates, sending text and files into existing chats | `IMSG_TOKEN` | Full Disk Access for the relay's Python; the one-time Automation consent for Messages.app (see [Install](#install)) | Relay URL and token |
 | Contact names, group photos | `BB_URL`, `BB_PASSWORD` | BlueBubbles server (its contact and chat-icon endpoints, called with the server password; untested on a server without the Private API) | nothing to switch on |
 | Tapbacks, threaded replies, new conversations | `BB_URL`, `BB_PASSWORD` | BlueBubbles server with the Private API enabled (SIP off) | nothing to switch on |
+| Send effects (Slam, Confetti, Invisible Ink, ...) on your own texts | `BB_URL`, `BB_PASSWORD` | the same BlueBubbles server with the Private API | nothing to switch on; the relay advertises `effect` under `/health` `capabilities` |
 | Undo Send (your own iMessage, for 2 minutes) | `BB_URL`, `BB_PASSWORD` | the same BlueBubbles server with the Private API | nothing to switch on; the relay advertises `unsend` under `/health` `capabilities` |
 | A chat opened on the phone is marked read in Messages on the Mac (and, with Messages in iCloud, on your other Apple devices) | `BB_URL`, `BB_PASSWORD`; `BB_MARK_READ=0` turns it off | the same BlueBubbles server with the Private API | nothing to switch on |
 | Edit (your own iMessage, for 15 minutes, 5 times) | none needed; `IMESSAGE_CLI` to name the binary or to switch it off | `imessage-cli` installed; Accessibility and Automation for the relay's Python | nothing to switch on; the relay advertises `edit` under `/health` `capabilities` |
@@ -216,8 +217,8 @@ This only matters for the Home Assistant map and any other LAN service you point
 | Engine | In the chain when | Handles | Can do |
 |---|---|---|---|
 | `beeper` | `BEEPER_TOKEN` set (a shipped placeholder does not count) | `bp:` chat guids (Google Messages) | text, replies |
-| `bluebubbles` | `BB_PASSWORD` set (any non-empty value except a shipped placeholder) | every other guid | text, attachments, replies, tapbacks, new chats, group icons, contacts, FaceTime, unsend (not edit), marking a chat read on the Mac |
-| `applescript` | always, unless `SEND_APPLESCRIPT_FALLBACK=0` | every other guid | text, attachments (into existing chats only) |
+| `bluebubbles` | `BB_PASSWORD` set (any non-empty value except a shipped placeholder) | every other guid | text, attachments, replies, send effects (`effectId`), tapbacks, new chats, group icons, contacts, FaceTime, unsend (not edit), marking a chat read on the Mac |
+| `applescript` | always, unless `SEND_APPLESCRIPT_FALLBACK=0` | every other guid | text, attachments (into existing chats only; a text with an effect goes plain) |
 | `imessage-cli` | the `imessage-cli` binary was found (`IMESSAGE_CLI`, else `/opt/homebrew/bin`, `/usr/local/bin`, the PATH), unless `IMESSAGE_CLI=0` | every other guid | edit, and nothing else |
 
 Default order is `beeper, bluebubbles, applescript, imessage-cli`. `SEND_ENGINES=name,name` replaces both membership and order with any subset; a name that is listed but not configured is skipped, and an unknown name makes the relay refuse to start (`ValueError: SEND_ENGINES names unknown engine(s)`). One engine the list cannot leave out: `imessage-cli` sends nothing, so no listed order depends on it, and when the tool is installed it joins after the listed engines (or where the list puts it). A list written before that engine existed therefore does not switch editing off; `IMESSAGE_CLI=0` does.
@@ -228,7 +229,7 @@ For each operation the chain keeps the engines that handle the chat and have the
 - **502** `BlueBubbles failed (HTTP 500: ...); AppleScript fallback failed`: every capable engine was tried and failed; the details are joined with `; `.
 - **Pass-through**: when exactly one engine was tried and it got an HTTP error from its upstream (BlueBubbles), that status comes back with BlueBubbles' response text as the `detail` string, so a BlueBubbles 400 on `/react` reads as a 400. Not on `/edit` and `/unsend`: there an engine's failure is always a `502` in the relay's own words (see [Edit and Undo Send](#edit-and-undo-send)).
 
-Replies are advisory: AppleScript cannot thread, so a reply that falls through to it lands as a plain message rather than not at all. Response shapes are frozen because the app keys on them: `/send` answers `{"ok":true,"via":"bb"|"applescript"|"gmessages"}` (plus `"bb"` with BlueBubbles' own JSON when it was BlueBubbles); `/send_attachment` answers `{"ok":true}` for BlueBubbles and `{"ok":true,"via":"applescript"}` otherwise.
+Replies are advisory: AppleScript cannot thread, so a reply that falls through to it lands as a plain message rather than not at all. A send effect is advisory in the same way: only BlueBubbles can apply one, and a text that falls through to AppleScript goes plain, which the answer says (`"effect_sent": false`). `GET /health` names `effect` among its `capabilities` exactly when BlueBubbles is in the chain for iMessage chats, so a client can offer effects only where one can be applied. Response shapes are frozen because the app keys on them: `/send` answers `{"ok":true,"via":"bb"|"applescript"|"gmessages"}` (plus `"bb"` with BlueBubbles' own JSON when it was BlueBubbles, and `"effect_sent": true|false` when an effect was asked for); `/send_attachment` answers `{"ok":true}` for BlueBubbles and `{"ok":true,"via":"applescript"}` otherwise.
 
 AppleScript sends files by staging them under `~/Library/Messages/RelayOutbox` (Messages.app is sandboxed and can only read inside its own container; the Full Disk Access grant covers writing there). Files older than an hour are cleaned up on the next send.
 
@@ -428,7 +429,7 @@ Every route except `GET /health` requires the token, as the `X-Imsg-Token` heade
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/health` | none | Unauthenticated: `{"ok":true}` and nothing else, whatever the query string (the `?nonce=` variant of earlier versions, which answered an HMAC of the token to any caller, is gone; a nonce is ignored). With the token: adds `cursor`, `contacts` (count), `self`, `bb_reachable` (the same password-checked ping as the doctor's BlueBubbles row), `engines`, `features`, `protocol` (currently `1`) and `capabilities`: a sorted list of what the chain can do in an iMessage chat beyond plain sending, out of `react`, `reply`, `create_chat`, `unsend`, `edit` (added without a protocol bump; an older relay simply has no such key). |
+| GET | `/health` | none | Unauthenticated: `{"ok":true}` and nothing else, whatever the query string (the `?nonce=` variant of earlier versions, which answered an HMAC of the token to any caller, is gone; a nonce is ignored). With the token: adds `cursor`, `contacts` (count), `self`, `bb_reachable` (the same password-checked ping as the doctor's BlueBubbles row), `engines`, `features`, `protocol` (currently `1`) and `capabilities`: a sorted list of what the chain can do in an iMessage chat beyond plain sending, out of `react`, `reply`, `create_chat`, `unsend`, `edit`, `effect`, plus `send_id`, which is the relay's own and always there (added without a protocol bump; an older relay simply has no such key). |
 | POST | `/register_push` | token | `{"token"}`: register an FCM device token. |
 | GET | `/contacts` | token | Count of resolved names and a 10-entry sample (debug). |
 | POST | `/contacts/refresh` | token | Reload names from BlueBubbles. |
@@ -436,7 +437,7 @@ Every route except `GET /health` requires the token, as the `X-Imsg-Token` heade
 | GET | `/contacts/search?q=` | token | Typeahead for the compose screen (name or number/email). |
 | GET | `/search?q=&limit=&chat=` | token | Message search across all chats, or within one chat guid (`bp:` chats search through Beeper). |
 | GET | `/threads?limit=` | token | Conversation list, iMessage and Google Messages merged, with pin, archive, unread and auto-translate state. |
-| GET | `/thread/{chat_guid}/messages?limit=&before=` | token | The newest `limit` messages of one chat, returned oldest-first (ascending ROWID); `before=<rowid>` pages backwards. For `bp:` chats `before` is ignored and the latest `limit` messages come back. |
+| GET | `/thread/{chat_guid}/messages?limit=&before=` | token | The newest `limit` messages of one chat, returned oldest-first (ascending ROWID); `before=<rowid>` pages backwards. For `bp:` chats `before` is ignored and the latest `limit` messages come back. Every message dict the relay serves, here and on the WebSocket, carries `effect`: Apple's send-effect id when the message was sent with one (Slam, Confetti, ...), otherwise `null`; always `null` for Google Messages. |
 | GET | `/thread/{chat_guid}/media` | token | Every attachment in a chat (newest first) and the distinct links found in its newest 1,000 messages. |
 | GET | `/chat_icon/{guid}` | token | Group photo via BlueBubbles, cached on disk; 404 when the chat has none, 501 without BlueBubbles. |
 | POST | `/chat_icon/refresh` | token | Forget cached icons and misses. |
@@ -446,8 +447,8 @@ Every route except `GET /health` requires the token, as the `X-Imsg-Token` heade
 | GET | `/thumbnail/{guid}` | token | Quick Look thumbnail (`qlmanage`), cached. |
 | GET | `/bp_asset?u=` | token | Proxy a Beeper (Matrix) asset for the phone. `u` must be an `mxc://`, `localmxc://` or `file://` URL, the three schemes Beeper Desktop's asset endpoint takes; anything else gets `400 unsupported asset url`, and so does a `file://` URL with a `..` segment or a NUL in its path. |
 | POST | `/match_chat` | token | `{"addresses"}`: does an existing chat match this recipient set exactly. |
-| POST | `/create_chat` | token | `{"addresses","text","client_id"?}`: send into the matching chat, or create one (BlueBubbles only; 501 otherwise). With a `client_id` the same request is not sent twice (see [Send ids](#send-ids)). |
-| POST | `/send` | token | `{"chat_guid","text","reply_to_guid"?,"client_id"?}` through the chain. With a `client_id` the same request is not sent twice (see [Send ids](#send-ids)). |
+| POST | `/create_chat` | token | `{"addresses","text","client_id"?}`: send into the matching chat, or create one (BlueBubbles only; 501 otherwise). With a `client_id` the same request is not sent twice (see [Send ids](#send-ids)). Takes no `effect`: the first text of a conversation goes plain. |
+| POST | `/send` | token | `{"chat_guid","text","reply_to_guid"?,"client_id"?,"effect"?}` through the chain. `effect` is one of Apple's thirteen send-effect ids (`com.apple.MobileSMS.expressivesend.impact` is Slam, `com.apple.messages.effect.CKConfettiEffect` Confetti; the list is `EFFECTS` in `engines/base.py`); anything else, and any effect in a `bp:` chat, is `422` and nothing is sent. Only BlueBubbles can apply one, so when an effect was asked for the answer carries `"effect_sent": true` if BlueBubbles delivered and `false` if a fallback engine sent the text plain. `GET /health` names `effect` among its `capabilities` on a relay whose chain can apply one, so a client can tell before it offers a picker (a relay from before effects has no such entry, ignores the key and sends plain). With a `client_id` the same request is not sent twice (see [Send ids](#send-ids)). |
 | POST | `/send_attachment` | token | Multipart `chat_guid` + `file` through the chain; 501 for a `bp:` chat. |
 | POST | `/react` | token | `{"chat_guid","message_guid","reaction"}` (love, like, dislike, laugh, emphasize, question); BlueBubbles only. |
 | POST | `/unsend` | token | `{"chat_guid","guid","part_index"?}`: Undo Send for one of your own iMessages, within 2 minutes; BlueBubbles only. Answers `{"ok":true,"via":"bb"}` once `chat.db` shows it. See [Edit and Undo Send](#edit-and-undo-send) for the refusals. |
@@ -482,7 +483,7 @@ The relay writes the id to `send_ids.json`, beside the state file, before any en
 | not known: the engine gave no answer, the relay answered 5xx, or the relay stopped in the middle | 409 with `{"detail": {"code": "send_outcome_unknown"}}`; nothing is sent under this id again |
 | still being worked on | the second request waits for the first and is then answered as above |
 
-The same id with another chat, other recipients or another text is refused (409, `send_id_reused`). If `send_ids.json` cannot be read or written, a request that carries an id is refused (503, `send_ids_unavailable`) and nothing is sent. The file holds, per id, a fingerprint of the message, the outcome, a time and the delivery path: no text and no recipient. Ids are kept for 48 hours, at most 2,000 of them.
+The same id with another chat, other recipients, another text or another effect is refused (409, `send_id_reused`). If `send_ids.json` cannot be read or written, a request that carries an id is refused (503, `send_ids_unavailable`) and nothing is sent. The file holds, per id, a fingerprint of the message, the outcome, a time and the delivery path: no text and no recipient. Ids are kept for 48 hours, at most 2,000 of them.
 
 ## Logs and privacy
 

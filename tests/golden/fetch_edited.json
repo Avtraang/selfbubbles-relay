@@ -21,7 +21,8 @@
     "link": null,
     "reply_to_guid": null,
     "reply_to": null,
-    "service": "iMessage"
+    "service": "iMessage",
+    "effect": null
    },
    {
     "rowid": 1,
@@ -43,7 +44,8 @@
     "link": null,
     "reply_to_guid": null,
     "reply_to": null,
-    "service": "iMessage"
+    "service": "iMessage",
+    "effect": null
    }
   ],
   725760000000020000
@@ -70,7 +72,8 @@
     "link": null,
     "reply_to_guid": null,
     "reply_to": null,
-    "service": "iMessage"
+    "service": "iMessage",
+    "effect": null
    }
   ],
   725760000000020000

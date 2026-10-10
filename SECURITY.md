@@ -469,7 +469,12 @@ wire.
 Nothing else in the relay builds an upstream path from client input:
 `/chat_icon/{guid}` percent-encodes the chat guid for BlueBubbles (and asks
 nothing for a "guid" that is only dots), and every other value travels in a
-JSON body or a query parameter.
+JSON body or a query parameter. One of those values is forwarded as a
+protocol identifier rather than as content: the `effect` on `/send` becomes
+the Private API's `effectId`, so it is checked against the relay's own list
+of Apple's thirteen effect ids (`EFFECTS` in `engines/base.py`) before the
+chain is walked, and anything else is answered `422` with nothing sent
+(`tests/test_message_effects.py`).
 
 ### 13. Changing a sent message: checked first, confirmed afterwards, and no shell
 

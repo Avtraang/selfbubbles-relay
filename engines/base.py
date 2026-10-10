@@ -35,9 +35,10 @@ from typing import Any, Protocol, runtime_checkable
 
 
 class Capability(str, Enum):
-    """What an engine can do.  ``REPLY`` is advisory: a reply sent through an
-    engine without it lands as a plain message (today's AppleScript fallback
-    behaviour), so the chain does not require it."""
+    """What an engine can do.  ``REPLY`` and ``EFFECT`` are advisory: a reply
+    or a send effect through an engine without them lands as a plain message
+    (today's AppleScript fallback behaviour), so the chain does not require
+    them."""
 
     TEXT = "text"
     ATTACHMENT = "attachment"
@@ -54,6 +55,14 @@ class Capability(str, Enum):
     # anything.  No engine advertises a capability it was not seen to perform.
     UNSEND = "unsend"
     EDIT = "edit"
+    # Send effects (Slam, Confetti, ...; ``EFFECTS`` below), 2026-10-10.  Only
+    # the Private API applies one, so ``/health.capabilities`` names ``effect``
+    # exactly where BlueBubbles is in the chain for iMessage chats, and the app
+    # offers the picker there and nowhere else (the ``edit`` and ``send_id``
+    # precedent: a client relies on a thing only where it is named).  Advisory
+    # like ``REPLY``: ``/send`` asks the chain for ``TEXT``, and a fallback
+    # sends the text plain and says so (``effect_sent``).
+    EFFECT = "effect"
 
 
 #: Human phrase for the 501 the chain raises when nothing can do ``cap``.
@@ -68,6 +77,7 @@ CAPABILITY_VERB: dict[Capability, str] = {
     Capability.FACETIME: "handle FaceTime",
     Capability.UNSEND: "unsend messages",
     Capability.EDIT: "edit messages",
+    Capability.EFFECT: "send effects",
 }
 
 #: Beeper (Google Messages) chat guids carry this prefix (``beeper.PREFIX``);
@@ -79,6 +89,46 @@ BEEPER_PREFIX = "bp:"
 
 def is_beeper_guid(chat_guid: str) -> bool:
     return chat_guid.startswith(BEEPER_PREFIX)
+
+
+#: Apple's iMessage send effects, by the id Messages writes to
+#: ``message.expressive_send_style_id`` and BlueBubbles takes as ``effectId``,
+#: with the name iOS shows for each.  The relay serves these ids as a
+#: message's ``effect`` and accepts one of them on ``/send``; this dictionary
+#: is the ONE list both are checked against, and nothing else from the client
+#: reaches BlueBubbles as a protocol identifier.  The four ``MobileSMS``
+#: ids are bubble effects, the ``CK...Effect`` ids full-screen ones.
+EFFECTS: dict[str, str] = {
+    "com.apple.MobileSMS.expressivesend.impact": "Slam",
+    "com.apple.MobileSMS.expressivesend.loud": "Loud",
+    "com.apple.MobileSMS.expressivesend.gentle": "Gentle",
+    "com.apple.MobileSMS.expressivesend.invisibleink": "Invisible Ink",
+    "com.apple.messages.effect.CKEchoEffect": "Echo",
+    "com.apple.messages.effect.CKSpotlightEffect": "Spotlight",
+    "com.apple.messages.effect.CKHappyBirthdayEffect": "Balloons",
+    "com.apple.messages.effect.CKConfettiEffect": "Confetti",
+    "com.apple.messages.effect.CKHeartEffect": "Love",
+    "com.apple.messages.effect.CKLasersEffect": "Lasers",
+    "com.apple.messages.effect.CKFireworksEffect": "Fireworks",
+    "com.apple.messages.effect.CKShootingStarEffect": "Shooting Star",
+    "com.apple.messages.effect.CKSparklesEffect": "Celebration",
+}
+
+#: The 422 details ``/send`` answers for an effect it will not pass on.
+UNKNOWN_EFFECT = "unknown effect id"
+EFFECT_NOT_FOR_GOOGLE_MESSAGES = "a Google Messages chat cannot carry an iMessage effect"
+
+
+def effect_problem(chat_guid: str, effect: str) -> str | None:
+    """Why ``effect`` cannot go out in ``chat_guid``, or ``None`` when it can:
+    the id is not one of ``EFFECTS`` (anything else, the empty string
+    included, is refused: the value is forwarded to BlueBubbles as given), or
+    the chat is a Google Messages one, which has no effects at all."""
+    if effect not in EFFECTS:
+        return UNKNOWN_EFFECT
+    if is_beeper_guid(chat_guid):
+        return EFFECT_NOT_FOR_GOOGLE_MESSAGES
+    return None
 
 
 @dataclass(frozen=True)
@@ -169,7 +219,13 @@ class SendEngine(Protocol):
     def handles(self, chat_guid: str) -> bool: ...
 
     async def send_text(self, chat_guid: str, text: str,
-                        reply_to_guid: str | None = None) -> SendResult: ...
+                        reply_to_guid: str | None = None,
+                        effect: str | None = None) -> SendResult:
+        """``effect`` is one of ``EFFECTS`` (the relay checks it first) or
+        ``None``.  Like ``REPLY`` it is advisory: an engine that cannot do
+        effects sends the text plain, and the relay tells the app which
+        happened (``effect_sent``) from the ``via`` of the result."""
+        ...
 
     async def send_attachment(self, chat_guid: str, name: str, content: bytes,
                               content_type: str) -> SendResult: ...

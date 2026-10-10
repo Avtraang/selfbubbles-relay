@@ -76,7 +76,7 @@ _METHOD: dict[Capability, str] = {
 #: What ``/health.capabilities`` may name: what a chain can do in an iMessage
 #: chat beyond plain sending.  The values are the ``Capability`` values.
 IMESSAGE_EXTRAS = (Capability.REACT, Capability.REPLY, Capability.CREATE_CHAT,
-                   Capability.UNSEND, Capability.EDIT)
+                   Capability.UNSEND, Capability.EDIT, Capability.EFFECT)
 
 #: A guid no engine mistakes for a Google Messages one: stands for "an
 #: iMessage chat" when a question is about the chain, not about one chat.
@@ -151,8 +151,9 @@ def engine_names(chain: list[SendEngine]) -> list[str]:
 
 def imessage_capabilities(chain: list[SendEngine]) -> list[str]:
     """What ``chain`` can do in an iMessage chat beyond plain sending, sorted:
-    a subset of ``react``, ``reply``, ``create_chat``, ``unsend``, ``edit``.
-    An engine that only handles Google Messages chats does not count."""
+    a subset of ``react``, ``reply``, ``create_chat``, ``unsend``, ``edit``,
+    ``effect``.  An engine that only handles Google Messages chats does not
+    count."""
     return sorted(cap.value for cap in IMESSAGE_EXTRAS
                   if any(cap in e.capabilities and e.handles(IMESSAGE_PROBE_GUID) for e in chain))
 

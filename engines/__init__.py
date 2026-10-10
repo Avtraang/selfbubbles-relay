@@ -10,8 +10,8 @@
     features     derive_features(env) for /health
 """
 
-from engines.base import (CAPABILITY_VERB, Capability, EngineError, FaceTimeBridge,
-                          SendEngine, SendResult, Unsupported, is_beeper_guid)
+from engines.base import (CAPABILITY_VERB, EFFECTS, Capability, EngineError, FaceTimeBridge,
+                          SendEngine, SendResult, Unsupported, effect_problem, is_beeper_guid)
 from engines.chain import (DEFAULT_ORDER, DeliveryError, build_chain, deliver,
                            engine_names, first_with, imessage_capabilities, no_engine)
 from engines.features import FEATURES, derive_features
@@ -21,8 +21,8 @@ from engines.features import FEATURES, derive_features
 PROTOCOL = 1
 
 __all__ = [
-    "CAPABILITY_VERB", "Capability", "DEFAULT_ORDER", "DeliveryError", "EngineError",
+    "CAPABILITY_VERB", "Capability", "DEFAULT_ORDER", "DeliveryError", "EFFECTS", "EngineError",
     "FEATURES", "FaceTimeBridge", "PROTOCOL", "SendEngine", "SendResult", "Unsupported",
-    "build_chain", "deliver", "derive_features", "engine_names", "first_with",
+    "build_chain", "deliver", "derive_features", "effect_problem", "engine_names", "first_with",
     "imessage_capabilities", "is_beeper_guid", "no_engine",
 ]

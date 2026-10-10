@@ -133,7 +133,11 @@ def relay_reply(r: ReplyTarget | None) -> dict | None:
 def relay_msg(m: Message) -> dict:
     """The message dict the relay serves: the enriched ``Message`` (attachments,
     link preview and reply target already resolved) rendered through the relay's
-    hooks, keys in the order the API has always emitted them."""
+    hooks, keys in the order the API has always emitted them.  ``effect`` came
+    last (2026-10-10): Apple's send-effect id from
+    ``message.expressive_send_style_id`` (``engines.base.EFFECTS`` names them),
+    or ``None`` for a plain message; the column holds ``""`` on some rows and
+    NULL on others, and the app gets ``None`` for both."""
     return {
         "rowid": m.rowid, "guid": m.guid, "text": m.text,
         "date": apple_date_to_unix(m.date), "date_read": apple_date_to_unix(m.date_read),
@@ -151,6 +155,7 @@ def relay_msg(m: Message) -> dict:
         "reply_to_guid": m.reply_to_guid,
         "reply_to": relay_reply(m.reply_to),
         "service": m.service_raw,
+        "effect": m.expressive_send_style_id or None,
     }
 
 

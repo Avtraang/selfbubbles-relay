@@ -192,9 +192,12 @@ class AppleScriptEngine:
         return any(self._run(_AS_FILE, g, str(path)) for g in _guid_variants(chat_guid))
 
     async def send_text(self, chat_guid: str, text: str,
-                        reply_to_guid: str | None = None) -> SendResult:
-        # AppleScript can't thread: a reply lands as a plain message rather
-        # than not at all (reply_to_guid is accepted and ignored).
+                        reply_to_guid: str | None = None,
+                        effect: str | None = None) -> SendResult:
+        # AppleScript can't thread, and Messages' scripting dictionary has no
+        # send effects: a reply lands as a plain message, and so does a text
+        # with an effect, rather than not at all (reply_to_guid and effect are
+        # accepted and ignored; the relay's ``effect_sent`` says so).
         if await asyncio.to_thread(self._send_text_sync, chat_guid, text):
             return SendResult(True, self.via)
         return SendResult(False, self.via, FAILED)

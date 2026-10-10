@@ -1610,9 +1610,9 @@ def test_health_capabilities_follow_the_chain(r, db, fake_cli, client, monkeypat
         # What the engines can do. "send_id" is the relay's own (it keeps send ids) and is always there.
         return [c for c in client.get("/health", headers=AUTH).json()["capabilities"] if c != "send_id"]
 
-    assert caps() == ["create_chat", "edit", "react", "reply", "unsend"]           # BlueBubbles + the tool
+    assert caps() == ["create_chat", "edit", "effect", "react", "reply", "unsend"] # BlueBubbles + the tool
     monkeypatch.setattr(r, "IMESSAGE_CLI_BIN", None)
-    assert caps() == ["create_chat", "react", "reply", "unsend"]
+    assert caps() == ["create_chat", "effect", "react", "reply", "unsend"]
     monkeypatch.setattr(r, "BB_PASSWORD", "")
     assert caps() == []                                                            # AppleScript alone
     monkeypatch.setattr(r, "IMESSAGE_CLI_BIN", str(fake_cli.binary))
@@ -1632,7 +1632,7 @@ def test_health_is_additive_and_says_nothing_new_without_the_token(r, client):
     assert body["protocol"] == 1                                                   # additive: no bump
     assert body["engines"] == ["bluebubbles", "applescript"]
     assert body["capabilities"] == sorted(body["capabilities"])
-    assert set(body["capabilities"]) <= {"react", "reply", "create_chat", "unsend", "edit", "send_id"}
+    assert set(body["capabilities"]) <= {"react", "reply", "create_chat", "unsend", "edit", "effect", "send_id"}
     assert "send_id" in body["capabilities"]                                       # the relay's own: it keeps send ids
     for kw in ({}, {"headers": {"X-Imsg-Token": "wrong"}}):
         assert client.get("/health", **kw).json() == {"ok": True}

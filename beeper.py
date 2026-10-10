@@ -386,6 +386,9 @@ def msg_to_dict(m: dict, chat_guid: str, is_group: bool) -> dict:
         "reply_to_guid": str(linked) if linked else None,
         "reply_to": None,
         "network": "gmessages",
+        # Every message the relay serves has the key; Google Messages has no
+        # send effects, so here it is always None (chatdb_adapter.relay_msg).
+        "effect": None,
     }
 
 

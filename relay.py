@@ -347,7 +347,7 @@ install_log_masking()
 
 import beeper  # Google Messages via the Beeper Desktop local API
 from engines import (PROTOCOL, Capability, DeliveryError, EngineError, build_chain,
-                     deliver, derive_features, engine_names, first_with,
+                     deliver, derive_features, effect_problem, engine_names, first_with,
                      imessage_capabilities, no_engine)
 from engines.applescript import (  # kept under their old names: tests and tools patch them here
     _AS_FILE, _AS_TEXT, OUTBOX, AppleScriptEngine, _applescript, _guid_variants)
@@ -1678,8 +1678,9 @@ def health(request: Request):
     chain = _chain()
     # "capabilities" (step R6, additive: the protocol number stays): what this
     # chain can do in an iMessage chat beyond plain sending, sorted, out of
-    # react / reply / create_chat / unsend / edit, so a client can offer
-    # "Edit" and "Undo Send" only where they can work.
+    # react / reply / create_chat / unsend / edit / effect, so a client can
+    # offer "Edit", "Undo Send" and the send-effect picker only where they
+    # can work.
     try:
         cursor = load_cursor()
     except OSError:
@@ -3200,30 +3201,62 @@ class SendReq(BaseModel):
     text: str
     reply_to_guid: str | None = None
     client_id: str | None = None
+    #: One of Apple's send-effect ids (``engines.base.EFFECTS``: Slam, Confetti,
+    #: ...), or none. Checked by the route before any engine is asked.
+    effect: str | None = None
 
 
-async def deliver_text(chat_guid: str, text: str, reply_to_guid: str | None = None):
+async def deliver_text(chat_guid: str, text: str, reply_to_guid: str | None = None,
+                       effect: str | None = None):
     """Walk the chain for TEXT: BlueBubbles first, AppleScript fallback (Beeper
     for bp: guids). Shared by /send and the voice assistant path. Returns
     {"ok": True, "via": ...} or raises DeliveryError (501/502/upstream status).
 
     Replies need the Private API (AppleScript can't thread), so a reply that
-    falls back to AppleScript lands as a normal message rather than not at all."""
-    res = await deliver(_chain(), Capability.TEXT, chat_guid, text, reply_to_guid=reply_to_guid)
+    falls back to AppleScript lands as a normal message rather than not at all.
+    A send effect is the same kind of extra: only BlueBubbles can apply one,
+    and the message matters more than the effect, so a fallback sends the text
+    plain. When an effect was asked for, the answer says which happened:
+    ``effect_sent`` is true when BlueBubbles delivered, false otherwise."""
+    res = await deliver(_chain(), Capability.TEXT, chat_guid, text, reply_to_guid=reply_to_guid,
+                        effect=effect)
     body = {"ok": True, "via": res.via}
     if res.via == "bb":
         body["bb"] = res.payload
+    if effect is not None:
+        body["effect_sent"] = res.via == "bb"
     return body
 
 
 @app.post("/send")
 async def send(req: SendReq):
+    if req.effect is not None:
+        # The id goes to BlueBubbles as given, so only one of Apple's own
+        # passes, and never into a Google Messages chat: 422, nothing sent.
+        problem = effect_problem(req.chat_guid, req.effect)
+        if problem is not None:
+            raise HTTPException(422, problem)
+
     async def run():
-        body = await deliver_text(req.chat_guid, req.text, req.reply_to_guid)
+        body = await deliver_text(req.chat_guid, req.text, req.reply_to_guid, req.effect)
         return body, body.get("via")
 
-    return await _send_once(req.client_id, _send_fingerprint("send", req.chat_guid, req.text, req.reply_to_guid),
-                            run, lambda rec: {"via": rec.get("via")})
+    # The effect is part of what the id stands for (the same text with another
+    # effect is another message), but only when one was asked for: a send
+    # without one fingerprints as it did before effects existed, so an id
+    # written by the relay before this change is still recognised.
+    parts = ("send", req.chat_guid, req.text, req.reply_to_guid)
+    if req.effect is not None:
+        parts += (req.effect,)
+
+    def again(rec):
+        # The id file keeps the delivery path, which is all effect_sent is.
+        reply = {"via": rec.get("via")}
+        if req.effect is not None:
+            reply["effect_sent"] = rec.get("via") == "bb"
+        return reply
+
+    return await _send_once(req.client_id, _send_fingerprint(*parts), run, again)
 
 
 @app.post("/send_attachment")

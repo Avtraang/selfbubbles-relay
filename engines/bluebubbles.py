@@ -209,7 +209,8 @@ class BlueBubblesEngine:
         return not is_beeper_guid(chat_guid)
 
     async def send_text(self, chat_guid: str, text: str,
-                        reply_to_guid: str | None = None) -> SendResult:
+                        reply_to_guid: str | None = None,
+                        effect: str | None = None) -> SendResult:
         payload = {
             "chatGuid": chat_guid, "message": text,
             "method": "private-api", "tempGuid": f"relay-{int(time.time()*1000)}",
@@ -217,6 +218,11 @@ class BlueBubblesEngine:
         if reply_to_guid:
             payload["selectedMessageGuid"] = reply_to_guid
             payload["partIndex"] = 0
+        if effect:
+            # The Private API's send effect (Slam, Confetti, ...), by Apple's
+            # id.  Only ever one of ``EFFECTS``: the relay refuses anything
+            # else before the chain is walked, so the value is passed as given.
+            payload["effectId"] = effect
         try:
             r = await self._post("/api/v1/message/text", timeout=15, json=payload)
         except Exception as e:

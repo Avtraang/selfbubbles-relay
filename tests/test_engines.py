@@ -175,11 +175,12 @@ def sync(coro):
 # ---------------------------------------------------------------------------
 
 def test_capability_set_is_the_planned_one():
-    # the R2 set, plus UNSEND and EDIT (step R6)
+    # the R2 set, plus UNSEND and EDIT (step R6), plus EFFECT (send effects, 2026-10-10)
     assert {c.name for c in Capability} == {"TEXT", "ATTACHMENT", "REPLY", "REACT",
                                             "CREATE_CHAT", "CHAT_ICON", "CONTACTS", "FACETIME",
-                                            "UNSEND", "EDIT"}
+                                            "UNSEND", "EDIT", "EFFECT"}
     assert Capability.UNSEND.value == "unsend" and Capability.EDIT.value == "edit"
+    assert Capability.EFFECT.value == "effect"
 
 
 def test_engine_capabilities_and_via_strings_are_frozen():
