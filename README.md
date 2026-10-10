@@ -93,6 +93,7 @@ The relay half of each row is keys in `.env` (or the LaunchAgent's `EnvironmentV
 | Contact names, group photos | `BB_URL`, `BB_PASSWORD` | BlueBubbles server (its contact and chat-icon endpoints, called with the server password; untested on a server without the Private API) | nothing to switch on |
 | Tapbacks, threaded replies, new conversations | `BB_URL`, `BB_PASSWORD` | BlueBubbles server with the Private API enabled (SIP off) | nothing to switch on |
 | Undo Send (your own iMessage, for 2 minutes) | `BB_URL`, `BB_PASSWORD` | the same BlueBubbles server with the Private API | nothing to switch on; the relay advertises `unsend` under `/health` `capabilities` |
+| A chat opened on the phone is marked read in Messages on the Mac (and, with Messages in iCloud, on your other Apple devices) | `BB_URL`, `BB_PASSWORD`; `BB_MARK_READ=0` turns it off | the same BlueBubbles server with the Private API | nothing to switch on |
 | Edit (your own iMessage, for 15 minutes, 5 times) | none needed; `IMESSAGE_CLI` to name the binary or to switch it off | `imessage-cli` installed; Accessibility and Automation for the relay's Python | nothing to switch on; the relay advertises `edit` under `/health` `capabilities` |
 | Notifications while the app is closed | `FCM_CREDS` | Your own Firebase project and its service-account JSON on the Mac | Built with that project's `google-services.json`, made for the build's application id (`io.github.avtraang.selfbubbles` unless the build sets `APPLICATION_ID`) |
 | FaceTime ring, answer, link | `BB_PASSWORD`, `FEATURE_FACETIME` | The two rows above (the ring travels only over FCM); BlueBubbles' "FaceTime Calling (Experimental)" with its webhook pointed at `/bb_event`; somebody at the Mac, or the display-specific rig, to admit the phone into the call | Settings > Features > FaceTime |
@@ -215,7 +216,7 @@ This only matters for the Home Assistant map and any other LAN service you point
 | Engine | In the chain when | Handles | Can do |
 |---|---|---|---|
 | `beeper` | `BEEPER_TOKEN` set (a shipped placeholder does not count) | `bp:` chat guids (Google Messages) | text, replies |
-| `bluebubbles` | `BB_PASSWORD` set (any non-empty value except a shipped placeholder) | every other guid | text, attachments, replies, tapbacks, new chats, group icons, contacts, FaceTime, unsend (not edit) |
+| `bluebubbles` | `BB_PASSWORD` set (any non-empty value except a shipped placeholder) | every other guid | text, attachments, replies, tapbacks, new chats, group icons, contacts, FaceTime, unsend (not edit), marking a chat read on the Mac |
 | `applescript` | always, unless `SEND_APPLESCRIPT_FALLBACK=0` | every other guid | text, attachments (into existing chats only) |
 | `imessage-cli` | the `imessage-cli` binary was found (`IMESSAGE_CLI`, else `/opt/homebrew/bin`, `/usr/local/bin`, the PATH), unless `IMESSAGE_CLI=0` | every other guid | edit, and nothing else |
 
@@ -320,6 +321,7 @@ Every key in `.env.example`, with its default when unset. Environment beats `.en
 |---|---|---|
 | `BB_URL` | `http://localhost:1234` | BlueBubbles server URL. |
 | `BB_PASSWORD` | empty | Server password; sent only as BlueBubbles' `password` query parameter, never logged. Enables the `bluebubbles` engine, contact names and FaceTime. `.env.example` ships it commented out; the launchd example ships the placeholder `CHANGE-ME`, which counts as empty. |
+| `BB_MARK_READ` | `1` | `0` stops the relay from marking a chat read in Messages on the Mac when the phone opens it (`POST /read`); the relay's own read marks are kept either way. Needs `BB_PASSWORD` and the Private API. |
 
 **Push**
 
@@ -450,7 +452,7 @@ Every route except `GET /health` requires the token, as the `X-Imsg-Token` heade
 | POST | `/react` | token | `{"chat_guid","message_guid","reaction"}` (love, like, dislike, laugh, emphasize, question); BlueBubbles only. |
 | POST | `/unsend` | token | `{"chat_guid","guid","part_index"?}`: Undo Send for one of your own iMessages, within 2 minutes; BlueBubbles only. Answers `{"ok":true,"via":"bb"}` once `chat.db` shows it. See [Edit and Undo Send](#edit-and-undo-send) for the refusals. |
 | POST | `/edit` | token | `{"chat_guid","guid","text","part_index"?}`: replace the text of one of your own iMessages, within 15 minutes and 5 edits; `imessage-cli` only. Answers `{"ok":true,"via":"imessage-cli"}` once `chat.db` shows it (with `"text_differs":true` when the edit landed with another text than the one sent), or `{"ok":true,"via":null,"unchanged":true}` when the text is already that. One edit runs at a time. |
-| POST | `/read` | token | `{"chat_guid","rowid"}`: read high-water mark from the app. |
+| POST | `/read` | token | `{"chat_guid","rowid"}`: read high-water mark from the app. With `BB_PASSWORD` set (and `BB_MARK_READ` not `0`) the chat is also marked read in Messages on the Mac; the answer waits for that for at most 5 s and is `ok` whether or not the Mac answered. |
 | POST | `/unread` | token | `{"chat_guid"}`: flag a chat unread until next opened. |
 | POST | `/pin` | token | `{"chat_guid","pinned"}`. |
 | POST | `/pin_order` | token | `{"order":[guids]}`: full pinned ordering. |

@@ -59,6 +59,9 @@ What the relay holds or can do:
   caller who names a chat by its number, every other chat Beeper Desktop
   holds (see [What the token unlocks](#what-the-token-unlocks));
 - sending texts, files, tapbacks and new chats as the Mac's user;
+- marking a chat read in Messages on the Mac, and so on the owner's other
+  Apple devices with Messages in iCloud (with BlueBubbles, when the phone
+  opens the chat; `BB_MARK_READ=0` turns it off);
 - editing and unsending the owner's own recent iMessages (with
   `imessage-cli` and BlueBubbles; Apple's 15-minute and 2-minute windows);
 - answering, declining and minting FaceTime calls (with BlueBubbles);
@@ -426,7 +429,7 @@ captures to `shots/` while it runs.
 
 ### 12. An identifier from the client stays one path segment upstream
 
-Three kinds of route put a client-supplied identifier into the path of a
+Four kinds of route put a client-supplied identifier into the path of a
 request the relay makes with an upstream credential, and `httpx` resolves
 `..` segments before it sends. Each identifier is confined to one segment:
 
@@ -443,7 +446,12 @@ request the relay makes with an upstream credential, and `httpx` resolves
   control character is refused and no request is made
   (`beeper.chat_path_id`). Before this, `bp:../../v1/accounts#` reached other
   endpoints of Beeper Desktop's API with the Beeper token.
-
+- **Chat guid on `/read`** (marking the chat read in Messages on the Mac):
+  BlueBubbles' mark-read endpoint takes the guid in the path, so it goes in
+  as exactly one percent-encoded segment and an empty one, or one that is
+  only dots, is refused before any request is made (`_path_segment`, the
+  same guard as the unsend route's). `/` and `..` inside a guid cannot leave
+  the segment.
 - **Message guid** (`/unsend`): BlueBubbles' unsend endpoint takes the guid
   in its path (`/api/v1/message/<guid>/unsend`). The route only gets that
   far with a guid it has just found in `chat.db`, in the chat that was
@@ -454,9 +462,10 @@ request the relay makes with an upstream credential, and `httpx` resolves
   every spelling a URL can give it: on the wire it is percent-encoded),
   the server address and the message guid.
 
-`tests/test_facetime_routes.py`, `tests/test_beeper_paths.py` and
-`tests/test_edit_unsend_engines.py` check all three against a transport that
-records the path as `httpx` puts it on the wire.
+`tests/test_facetime_routes.py`, `tests/test_beeper_paths.py`,
+`tests/test_mark_read_on_mac.py` and `tests/test_edit_unsend_engines.py` check
+all four against a transport that records the path as `httpx` puts it on the
+wire.
 Nothing else in the relay builds an upstream path from client input:
 `/chat_icon/{guid}` percent-encodes the chat guid for BlueBubbles (and asks
 nothing for a "guid" that is only dots), and every other value travels in a

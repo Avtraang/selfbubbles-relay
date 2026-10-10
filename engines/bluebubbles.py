@@ -54,6 +54,9 @@ BAD_CALL_ID = "invalid FaceTime call id"
 #: The same for a message guid (``unsend``).
 BAD_MESSAGE_GUID = "invalid message guid"
 
+#: The same for a chat guid (``mark_read``).
+BAD_CHAT_GUID = "invalid chat guid"
+
 
 def _path_segment(value: str, refusal: str) -> str:
     """``value`` as exactly ONE URL path segment.
@@ -309,6 +312,26 @@ class BlueBubblesEngine:
         if r.status_code < 400:
             return SendResult(True, self.via)
         body = self._scrub(r.text, message_guid)
+        return SendResult(False, self.via, _failed(f"HTTP {r.status_code}: {body[:200]}"),
+                          status=r.status_code, body=body)
+
+    async def mark_read(self, chat_guid: str) -> SendResult:
+        """Messages on the Mac marks the chat read: ``POST /api/v1/chat/<guid>/read``
+        (the server's ``markChatRead``, Private API).  The chat's unread
+        state goes there, and with Messages in iCloud on the owner's other
+        Apple devices too.  Marking a chat that is read already changes
+        nothing.  The guid goes into the path as ONE percent-encoded segment
+        and an empty one is refused (``EngineError``) before anything is
+        sent; failures are results, worded as ``unsend()``'s (class name
+        alone for a transport failure, the body scrubbed otherwise)."""
+        segment = _path_segment(chat_guid, BAD_CHAT_GUID)
+        try:
+            r = await self._post(f"/api/v1/chat/{segment}/read", timeout=10)
+        except Exception as e:
+            return SendResult(False, self.via, _failed(type(e).__name__))
+        if r.status_code < 400:
+            return SendResult(True, self.via)
+        body = self._scrub(r.text, chat_guid)
         return SendResult(False, self.via, _failed(f"HTTP {r.status_code}: {body[:200]}"),
                           status=r.status_code, body=body)
 

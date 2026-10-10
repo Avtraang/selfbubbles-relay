@@ -104,6 +104,11 @@ While running. The lines that carry something personal are marked **(P)**:
 - `[fcm] HH:MM:SS push: imsg|gm chat -> N device(s)`: no content, no
   identifiers; `[fcm] registered device token (N total)`;
   `[fcm] pruned N dead token(s)`.
+- `[reads] Messages on the Mac was not told that a chat was read (HTTP <status>)`
+  (or `(BlueBubbles failed (<class name>))` when BlueBubbles could not be
+  reached) and `[reads] Messages on the Mac did not answer within N s: a chat
+  stays unread there`: a `/read` whose BlueBubbles mark-read call failed; no
+  identifier, and nothing is printed when it worked.
 - `[fcm] skip push for archived chat <chat_guid>` **(P)**: a chat
   identifier (see below).
 - `[send] attachment <filename> (<bytes> bytes) -> <chat_guid> via <engine>`

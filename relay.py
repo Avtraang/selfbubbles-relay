@@ -135,6 +135,12 @@ STATE_PATH = Path(os.environ.get("IMSG_STATE", str(Path(__file__).parent / "rela
 POLL_SECONDS = float(os.environ.get("IMSG_POLL_SECONDS", "2"))
 BB_URL = os.environ.get("BB_URL", "http://localhost:1234").rstrip("/")
 BB_PASSWORD = drop_placeholder(os.environ.get("BB_PASSWORD", ""))
+#: A chat the phone opens is marked read in Messages on the Mac as well
+#: (BlueBubbles, Private API). ``BB_MARK_READ=0`` keeps the Mac's unread
+#: state as it is.
+BB_MARK_READ = os.environ.get("BB_MARK_READ", "1").strip() != "0"
+#: How long /read waits for Messages on the Mac; the relay's own mark is saved first.
+MARK_READ_ON_MAC_SECONDS = 5.0
 FCM_CREDS = os.environ.get("FCM_CREDS", "")
 
 APPLE_EPOCH_OFFSET = 978307200
@@ -3269,7 +3275,35 @@ async def mark_read(req: ReadReq):
         changed = True
     if changed:
         save_state(reads=reads, forced_unread=sorted(FORCED_UNREAD))
+    await mark_read_on_mac(req.chat_guid)
     return {"ok": True}
+
+
+async def mark_read_on_mac(chat_guid: str) -> None:
+    """Messages on the Mac is told that the chat was read, so that its unread
+    badge and its notifications go there too (and, with Messages in iCloud,
+    on the owner's other Apple devices). Best effort, after the relay's own
+    mark is saved: with no BlueBubbles, or BB_MARK_READ=0, nothing is asked;
+    a refusal or a failure is one log line (its status or class name, never
+    the chat) and the answer to the phone is "ok" regardless."""
+    if not BB_MARK_READ:
+        return
+    engine = _bluebubbles()
+    if not engine.configured():
+        return
+    try:
+        res = await asyncio.wait_for(engine.mark_read(chat_guid), MARK_READ_ON_MAC_SECONDS)
+    except asyncio.TimeoutError:
+        print(f"[reads] Messages on the Mac did not answer within {MARK_READ_ON_MAC_SECONDS:.0f} s: a chat stays unread there")
+        return
+    except EngineError:
+        return                               # a guid that cannot be a path segment: nothing to mark
+    except Exception as e:
+        print(f"[reads] Messages on the Mac was not told that a chat was read ({type(e).__name__})")
+        return
+    if not res.ok:
+        why = f"HTTP {res.status}" if res.status else (res.detail or "no detail")
+        print(f"[reads] Messages on the Mac was not told that a chat was read ({why})")
 
 
 @app.post("/pin")
