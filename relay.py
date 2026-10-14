@@ -346,6 +346,7 @@ def masked_log_config() -> dict:
 install_log_masking()
 
 import beeper  # Google Messages via the Beeper Desktop local API
+import scheduled  # Send Later: the items, their loop and their routes
 from engines import (PROTOCOL, Capability, DeliveryError, EngineError, build_chain,
                      deliver, derive_features, effect_problem, engine_names, first_with,
                      imessage_capabilities, no_engine)
@@ -1153,7 +1154,11 @@ def push_group_flag(msg: dict) -> str | None:
     return "1" if msg.get("is_group") else "0"
 
 
-def send_push(msg: dict):
+def push_data(data: dict, what: str) -> None:
+    """One data message to every registered device: the path every push takes
+    (a received message, a finished scheduled send). ``what`` names the kind
+    for the evidence line (no content, no handles): which side pushed and to
+    how many devices. Registrations Firebase reports as gone are dropped."""
     if not FCM_READY:
         return
     global _TOKENS_SEEN
@@ -1168,6 +1173,39 @@ def send_push(msg: dict):
         tokens, fresh = set(_TOKENS_SEEN), False
     if not tokens:
         return
+    print(f"[fcm] {time.strftime('%H:%M:%S')} push: {what} -> {len(tokens)} device(s)")
+    dead = []
+    for t in tokens:
+        try:
+            fb_messaging.send(fb_messaging.Message(
+                token=t, data=data,
+                android=fb_messaging.AndroidConfig(priority="high"),
+            ))
+        except fb_messaging.UnregisteredError:
+            dead.append(t)
+        except Exception as e:
+            print(f"[fcm] send error: {e}")
+    if dead and fresh:
+        with contextlib.suppress(OSError):
+            remove_tokens(dead)
+            print(f"[fcm] pruned {len(dead)} dead token(s)")
+
+
+def listed_chat_name(chat_guid: str) -> str:
+    """The chat's name as the thread list shows it, for a notification that
+    is not about a received message: the cached title, or for a Google
+    Messages chat what Beeper's listing says; "" when nothing has listed it."""
+    name = CHAT_TITLES.get(chat_guid) or ""
+    if chat_guid.startswith("bp:"):
+        meta = beeper.chat_meta(chat_guid)
+        if meta is not None and meta[0]:
+            name = meta[0]
+    return str(name)[:200]
+
+
+def send_push(msg: dict):
+    if not FCM_READY:
+        return
     # Archived chats are silenced: skip the push entirely (don't even wake the
     # phone). The WS broadcast still goes out, so an open app stays live, and
     # unarchiving restores pushes immediately — membership is checked per
@@ -1176,9 +1214,6 @@ def send_push(msg: dict):
     if chat_guid in ARCHIVED:
         print(f"[fcm] skip push for archived chat {chat_guid}")
         return
-    # Evidence line (no content, no handles): which side pushed and to how many devices.
-    print(f"[fcm] {time.strftime('%H:%M:%S')} push: {'gm' if chat_guid.startswith('bp:') else 'imsg'} "
-          f"chat -> {len(tokens)} device(s)")
     # Attachment-only messages carry U+FFFC ("object replacement") as their
     # text — strip it or the notification shows a literal question mark.
     raw_text = (msg.get("text") or "").replace("\ufffc", "").replace("\ufffd", "").strip()
@@ -1217,21 +1252,7 @@ def send_push(msg: dict):
         data["chat_name"] = better[:200]
     elif data["chat_name"].startswith("chat") and data["chat_name"][4:].isdigit():
         data["chat_name"] = ""
-    dead = []
-    for t in tokens:
-        try:
-            fb_messaging.send(fb_messaging.Message(
-                token=t, data=data,
-                android=fb_messaging.AndroidConfig(priority="high"),
-            ))
-        except fb_messaging.UnregisteredError:
-            dead.append(t)
-        except Exception as e:
-            print(f"[fcm] send error: {e}")
-    if dead and fresh:
-        with contextlib.suppress(OSError):
-            remove_tokens(dead)
-            print(f"[fcm] pruned {len(dead)} dead token(s)")
+    push_data(data, f"{'gm' if chat_guid.startswith('bp:') else 'imsg'} chat")
 
 
 class PushLane:
@@ -1643,6 +1664,10 @@ async def _startup():
         _spawn("beeper", _watch_beeper)
     else:
         print("[beeper] disabled (no BEEPER_TOKEN)")
+    if FEATURES.get("schedule"):
+        _spawn("schedule", SCHEDULER.run)
+    else:
+        print("[schedule] off (IMSG_SCHEDULE)")
 
 
 class PushReq(BaseModel):
@@ -3124,6 +3149,19 @@ def _send_fingerprint(*parts) -> str:
     return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode()).hexdigest()[:32]
 
 
+def _text_send_parts(chat_guid: str, text: str, reply_to_guid: str | None, effect: str | None) -> tuple:
+    """What a text send's id stands for, on /send and for a scheduled send
+    alike, so one id means one message whichever way it goes out. The effect
+    is part of it (the same text with another effect is another message), but
+    only when one was asked for: a send without one fingerprints as it did
+    before effects existed, so an id written by the relay before this change
+    is still recognised."""
+    parts = ("send", chat_guid, text, reply_to_guid)
+    if effect is not None:
+        parts += (effect,)
+    return parts
+
+
 def _send_state_for(status: int) -> str:
     """What an answer of the relay's says about a send. 4xx and 501 refuse it
     before any engine could have sent: certainly not sent. Everything else
@@ -3241,13 +3279,7 @@ async def send(req: SendReq):
         body = await deliver_text(req.chat_guid, req.text, req.reply_to_guid, req.effect)
         return body, body.get("via")
 
-    # The effect is part of what the id stands for (the same text with another
-    # effect is another message), but only when one was asked for: a send
-    # without one fingerprints as it did before effects existed, so an id
-    # written by the relay before this change is still recognised.
-    parts = ("send", req.chat_guid, req.text, req.reply_to_guid)
-    if req.effect is not None:
-        parts += (req.effect,)
+    parts = _text_send_parts(req.chat_guid, req.text, req.reply_to_guid, req.effect)
 
     def again(rec):
         # The id file keeps the delivery path, which is all effect_sent is.
@@ -3257,6 +3289,29 @@ async def send(req: SendReq):
         return reply
 
     return await _send_once(req.client_id, _send_fingerprint(*parts), run, again)
+
+
+# ---------- Send Later ----------
+# The items live in the state file and go out through deliver_text under the
+# send id the app chose, via _send_once, exactly as a /send does: the send-id
+# file decides, so a relay that stops in the middle cannot send one twice.
+# Everything the scheduler needs is looked up at call time, so what a test
+# replaces for /send (the engines, the send ids, the hub) holds here too.
+SCHEDULER = scheduled.Scheduler(
+    load_state=lambda: load_state(),
+    change_state=lambda change: _change_state(change),
+    deliver=lambda chat_guid, text, reply_to_guid, effect: deliver_text(chat_guid, text, reply_to_guid, effect),
+    send_once=lambda client_id, fingerprint, run, again: _send_once(client_id, fingerprint, run, again),
+    fingerprint=lambda item: _send_fingerprint(*_text_send_parts(item["chat_guid"], item["text"],
+                                                                  item["reply_to_guid"], item["effect"])),
+    id_ok=lambda client_id: bool(_SEND_ID.fullmatch(client_id)),
+    broadcast=lambda payload: hub.broadcast(payload),
+    push=lambda data: MESSAGE_PUSHES.put(push_data, data, "scheduled"),
+    chat_name=lambda chat_guid: listed_chat_name(chat_guid),
+    enabled=lambda: bool(FEATURES.get("schedule")),
+    clock=time.time,
+)
+scheduled.mount(app, lambda: SCHEDULER)
 
 
 @app.post("/send_attachment")

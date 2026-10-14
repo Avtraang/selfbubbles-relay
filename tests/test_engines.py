@@ -660,9 +660,11 @@ def test_beeper_engine_default_send_is_looked_up_on_beeper_at_call_time(monkeypa
 # ---------------------------------------------------------------------------
 
 def test_derive_features_table():
-    off = {"facetime": False, "map": False, "translate": False, "voice": False}
+    # schedule needs no credential: on unless IMSG_SCHEDULE says 0
+    off = {"facetime": False, "map": False, "translate": False, "voice": False, "schedule": True}
     assert derive_features({}) == off
-    assert list(derive_features({})) == list(FEATURES) == ["facetime", "map", "translate", "voice"]
+    assert list(derive_features({})) == list(FEATURES) == ["facetime", "map", "translate", "voice", "schedule"]
+    assert derive_features({"IMSG_SCHEDULE": "0"})["schedule"] is False
     assert derive_features({"BB_PASSWORD": "x"}) == {**off, "facetime": True, "voice": True}
     assert derive_features({"BB_PASSWORD": "x", "FT_AUTOADMIT": "0"})["facetime"] is True   # objection 1
     assert derive_features({"FT_AUTOADMIT": "1"})["facetime"] is False
@@ -677,7 +679,7 @@ def test_derive_features_table():
 
 def test_derive_features_overrides():
     env = {"BB_PASSWORD": "x", "MAPKIT_TOKEN": "m", "HA_TOKEN": "h", "OLLAMA_MODEL": "q"}
-    assert derive_features(env) == {"facetime": True, "map": True, "translate": True, "voice": True}
+    assert derive_features(env) == {"facetime": True, "map": True, "translate": True, "voice": True, "schedule": True}
     assert derive_features({**env, "FEATURE_VOICE": "0"})["voice"] is False
     assert derive_features({**env, "FEATURE_VOICE": "0"})["facetime"] is True   # independent
     assert derive_features({"FEATURE_MAP": "1"})["map"] is True
@@ -716,7 +718,7 @@ def test_health_authenticated_adds_engines_features_protocol(r, client):
                           *(["capabilities"] if has_r6(r) else [])]
     assert body["engines"] == ["bluebubbles", "applescript"]      # stub env: BB_PASSWORD, no Beeper
     assert body["protocol"] == PROTOCOL == 1
-    assert list(body["features"]) == ["facetime", "map", "translate", "voice"]
+    assert list(body["features"]) == ["facetime", "map", "translate", "voice", "schedule"]
     assert all(isinstance(v, bool) for v in body["features"].values())
     assert body["features"]["facetime"] is True and body["features"]["voice"] is True
     assert body["features"] == r.FEATURES

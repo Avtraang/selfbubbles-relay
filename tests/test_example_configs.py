@@ -48,8 +48,10 @@ ROOT = Path(__file__).resolve().parent.parent
 ENV_EXAMPLE = ROOT / ".env.example"
 PLIST_EXAMPLE = ROOT / "launchd" / "org.selfbubbles.relay.plist.example"
 
-ALL_OFF = {feature: False for feature in FEATURES}
-FEATURE_KEYS = tuple(f"FEATURE_{feature.upper()}" for feature in FEATURES)
+#: What the examples advertise. Send Later (``schedule``) needs no credential
+#: and is on unless ``IMSG_SCHEDULE=0``: the examples carry no line for it.
+ALL_OFF = {feature: feature == "schedule" for feature in FEATURES}
+FEATURE_KEYS = tuple(f"FEATURE_{feature.upper()}" for feature in FEATURES if feature != "schedule")
 
 #: Integrations the relay runs without; a present value switches them on.
 #: (``IMESSAGE_CLI``, step R6, names the edit tool: documented in both
@@ -207,7 +209,7 @@ def test_plist_example_optional_blocks_are_commented_out():
     stranger = {**env, "IMSG_TOKEN": "a-real-token", "BB_PASSWORD": "a-real-password"}
     assert derive_features(stranger) == ALL_OFF
     derived = derive_features(without_feature_lines(stranger))
-    assert derived == {"facetime": True, "map": False, "translate": False, "voice": True}
+    assert derived == {"facetime": True, "map": False, "translate": False, "voice": True, "schedule": True}
     # placeholders only where a value is mandatory; nothing resembling a real path or user
     assert sorted(k for k, v in env.items() if "CHANGE-ME" in v) == ["BB_PASSWORD", "IMSG_TOKEN"]
     # ... and they are placeholders the relay recognises: left as shipped, the

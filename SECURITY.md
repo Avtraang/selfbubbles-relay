@@ -414,7 +414,11 @@ FileVault on, and never commit them (`.gitignore` already lists `.env`,
 hide buttons. **Every route stays mounted** regardless; a client with the
 token can call `/ft_link` or `/locations` whether or not the flag is on
 (they will simply fail with 501/503 when the backing service is not
-configured).
+configured). The one exception is `schedule` (`IMSG_SCHEDULE`, overridden by
+`FEATURE_SCHEDULE`): while it is off the `/scheduled` routes answer `404`
+and no scheduler runs, because a text accepted then would never go out. That
+switches a feature off; it protects nothing, and while it is on every token
+holder can use the routes.
 
 ### 11. The FaceTime auto-admit rig is off unless you build it
 
@@ -474,7 +478,10 @@ protocol identifier rather than as content: the `effect` on `/send` becomes
 the Private API's `effectId`, so it is checked against the relay's own list
 of Apple's thirteen effect ids (`EFFECTS` in `engines/base.py`) before the
 chain is walked, and anything else is answered `422` with nothing sent
-(`tests/test_message_effects.py`).
+(`tests/test_message_effects.py`). A text scheduled with `POST /scheduled`
+reaches BlueBubbles later through that same `/send` path, with the same check
+on its `effect` when it is stored and changed, and hands upstream nothing a
+`/send` does not (`tests/test_send_later.py`).
 
 ### 13. Changing a sent message: checked first, confirmed afterwards, and no shell
 
@@ -580,6 +587,12 @@ to reach the relay, can:
 - list every thread and read every message and attachment (`/threads`,
   `/thread/{chat_guid}/messages`, `/attachment/{guid}`, `/search`);
 - send text and files, react, create new chats, mark chats read, all as you;
+- queue texts to go out as you later, up to 30 days ahead (`POST
+  /scheduled`), and read the queued texts of every chat (`GET /scheduled`
+  without `chat_guid`), change them, cancel them or send them now. A queued
+  text does not depend on the token: it waits in `relay_state.json`
+  and goes out at its time even after the token is rotated, unless it is
+  removed ([Rotating the token](#rotating-the-token), step 3);
 - change what you already sent: replace the text of any iMessage you sent in
   the last 15 minutes (up to Apple's five edits per message) and unsend any
   you sent in the last 2 minutes (`/edit`, `/unsend`, control 13). Not older
@@ -639,16 +652,24 @@ correct for both the plist and `.env`.
    (`~/Library/LaunchAgents/org.selfbubbles.relay.plist`) or `.env`. A key
    present in the plist always beats `.env`, so if it is in both, change the
    plist.
-3. Clear the push registrations. The entries in `relay_state.json` →
-   `push_tokens` are opaque FCM registration tokens, so you cannot tell your
-   phone's from a stranger's: empty the list. Your own phone registers again
-   when you save the new token in the app (step 6), and at every start of
-   the app after that.
+3. Clear the push registrations and the Send Later queue. The entries in
+   `relay_state.json` → `push_tokens` are opaque FCM registration tokens, so
+   you cannot tell your phone's from a stranger's: empty the list. Your own
+   phone registers again when you save the new token in the app (step 6),
+   and at every start of the app after that. `scheduled` holds the texts
+   waiting to go out, and whoever held the old token could have queued some,
+   up to 30 days ahead, which the relay would send at their time whatever the
+   token is by then: empty it as well. Your own pending texts go with them;
+   schedule them again in the app after step 6. (To keep yours instead, open
+   `relay_state.json` and check every item under `scheduled`, the ones you
+   recognise too: the old token could also change an item's text, time and
+   effect. Remove any you are not sure of, then delete `relay_state.bak` as
+   below.)
 
    ```sh
    cd /path/to/selfbubbles-relay
-   venv/bin/python -c "import json,pathlib; p=pathlib.Path('relay_state.json'); s=json.loads(p.read_text()); s['push_tokens']=[]; p.write_text(json.dumps(s))"
-   rm -f relay_state.bak   # still holds the old list, and is read if relay_state.json fails to parse
+   venv/bin/python -c "import json,pathlib; p=pathlib.Path('relay_state.json'); s=json.loads(p.read_text()); s['push_tokens']=[]; s.pop('scheduled', None); p.write_text(json.dumps(s))"
+   rm -f relay_state.bak   # still holds the old list and queue, and is read if relay_state.json fails to parse
    ```
 
    (If you moved the state file with `IMSG_STATE`, use that path.)
@@ -701,7 +722,10 @@ same edits and start it again.
   text, the message's row number and guid, and, when the message has a
   picture, the relay-relative path of the first image (`/attachment/<guid>`
   or `/bp_asset?u=…`; no hostname, no token). A FaceTime ring carries the
-  call id, the caller's address and name. All of it travels over TLS but is
+  call id, the caller's address and name. A Send Later item that was sent or
+  failed produces one more, archived chat or not, with `kind` `scheduled`:
+  the chat identifier, the chat name, the item's id and state, and the first
+  60 characters of your own text. All of it travels over TLS but is
   readable by Google: it is not end-to-end encrypted. Leave `FCM_CREDS`
   empty to run WebSocket-only.
 - **The LAN segment, if you open the port to it.** The listener is plain

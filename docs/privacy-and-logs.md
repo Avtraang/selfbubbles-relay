@@ -20,7 +20,7 @@ on its own.
 | `relay.log` | launchd `StandardOutPath` (stdout) | the relay's own `[tag]` lines **and** uvicorn's HTTP access log | forever, no rotation |
 | `relay.err` | launchd `StandardErrorPath` (stderr) | uvicorn's startup/shutdown and WebSocket lines, Python tracebacks | forever, no rotation |
 | `send_ids.json`, `send_ids.json.tmp` | `SendIds` in `relay.py` | the ids of text sends that carried one (`client_id`), each with a fingerprint of its message, what became of it, a time and the delivery path. No message text and no recipient. Mode 600 | small: ids are kept for 48 hours, at most 2,000, rewritten in place |
-| `relay_state.json`, `relay_state.bak`, `relay_state.tmp` | `save_state()` in `relay.py` | cursor, read marks, pins, archive list, auto-translate list, unread marks, icon misses, FCM device tokens | small, rewritten in place |
+| `relay_state.json`, `relay_state.bak`, `relay_state.tmp` | `save_state()` in `relay.py` | cursor, read marks, pins, archive list, auto-translate list, unread marks, icon misses, FCM device tokens, and the messages scheduled with Send Later: **their text**, until each is cancelled or a day after it is sent or fails | small, rewritten in place |
 | `icons/` | `/chat_icon/{guid}` | group-chat photos, one file per chat, named after the chat identifier | until `POST /chat_icon/refresh` |
 | `thumb_cache/` | `/thumbnail/{guid}` | Quick Look previews (`<guid>.png`) of videos, PDFs, documents | forever |
 | `heic_cache/` | `/attachment/{guid}` | JPEG transcodes (`<guid>.jpg`) of HEIC photos | forever |
@@ -101,8 +101,9 @@ and `[reads] baseline initialized at ROWID N`.
 While running. The lines that carry something personal are marked **(P)**:
 
 - `[contacts] N contacts from BlueBubbles -> M phone/email keys`: counts.
-- `[fcm] HH:MM:SS push: imsg|gm chat -> N device(s)`: no content, no
-  identifiers; `[fcm] registered device token (N total)`;
+- `[fcm] HH:MM:SS push: imsg chat|gm chat|scheduled -> N device(s)`: no
+  content, no identifiers (`scheduled` is the push for a Send Later item that
+  was sent or failed); `[fcm] registered device token (N total)`;
   `[fcm] pruned N dead token(s)`.
 - `[reads] Messages on the Mac was not told that a chat was read (HTTP <status>)`
   (or `(BlueBubbles failed (<class name>))` when BlueBubbles could not be
@@ -166,6 +167,26 @@ While running. The lines that carry something personal are marked **(P)**:
 - `[imessage-cli] N extra Messages instance(s) left running`: after an edit,
   more Messages.app processes were running than before it. A count, nothing
   else; the relay does not quit or kill them.
+- `[schedule] <id>: created, due in N min`, `[schedule] <id>: edited`,
+  `[schedule] <id>: cancelled`, `[schedule] <id>: sending` (or `sending
+  now`, for `send_now`), `[schedule] <id>: sent via <engine>`,
+  `[schedule] <id>: failed (<reason>)`, `[schedule] <id>: not sent, the send
+  ids are not available; pending again`, `[schedule] <id>: asked for again,
+  answered without adding`, `[schedule] <id>: left as sending by an earlier
+  run, asking the send ids what became of it`, `[schedule] dropped N finished
+  item(s) older than a day`, and at start `[schedule] off (IMSG_SCHEDULE)`
+  (the same words when `FEATURE_SCHEDULE` is what turned it off):
+  a Send Later item's id (a random hexadecimal string the relay made, not
+  the app's send id) and its state. The reason is one of the relay's fixed
+  phrases: `the message could not be sent (HTTP <status>)`, `the relay was
+  not running at the time`, `what became of the send is not known`, `the
+  relay cannot keep track of sends right now`, `the send id belongs to
+  another message`, or `the message could not be sent (<exception class>)`.
+  No text and no chat identifier in any of them; the delivery itself logs
+  what a `/send` logs (the `[send]` lines above). Two more on a failure of
+  the announcement alone: `[schedule] <id>: the WebSocket frame was not sent
+  (<error class>)` and `[schedule] <id>: the push was not queued (<error
+  class>)`.
 - `[create] new chat <guid> -> [<addresses>]` and
   `[create] reused existing chat <guid> for [<addresses>]` **(P)**: the
   phone numbers / email addresses of a new chat's members.
@@ -277,12 +298,14 @@ What the lines mean in practice:
   chat's guid looks like `iMessage;-;+15555550100` or `any;-;name@example.com`;
   a group chat's ends in `chatNNNNNNNNN…`; a Google Messages chat's is
   `bp:…`. In the access log they are URL-encoded: `;` is `%3B`, `+` is `%2B`
-  and `@` is `%40`. Every route that carries the chat in its path
+  and `@` is `%40`. Every route that carries the chat in its URL
   (`/thread/<chat_guid>/messages`, `/thread/<chat_guid>/media`,
-  `/chat_icon/<guid>`, `/search?chat=<chat_guid>`) therefore names who you
-  were talking to, and when. (Routes that take the chat in a POST body, such
-  as `/read`, `/pin` and `/archive`, log only the path; the relay's own
-  `[archive]` and `[translate]` lines name the chat instead.)
+  `/chat_icon/<guid>`, `/search?chat=<chat_guid>`,
+  `/scheduled?chat_guid=<chat_guid>`) therefore names who you were talking
+  to, and when. (Routes that take the chat in a POST body, such as `/read`,
+  `/pin`, `/archive` and `POST /scheduled`, log only the path; the relay's
+  own `[archive]` and `[translate]` lines name the chat instead. The other
+  Send Later routes carry the relay's own item id, not the chat.)
 - **Search terms are logged.** `/search?q=…`, `/contacts/search?q=…` and
   `/contacts/lookup?q=…` carry what was typed into the search box or the
   compose field.
@@ -342,6 +365,7 @@ the previous version is kept as `relay_state.bak`, and is read back if
 | `pins`, `archived`, `auto_translate`, `forced_unread` | lists of chat identifiers | chat identifiers |
 | `no_icon` | `{chat_guid: timestamp}`: groups known to have no photo | chat identifiers |
 | `push_tokens` | the FCM registration tokens of every phone that registered for push | yes: each one lets the holder of your Firebase service account push to that phone |
+| `scheduled` | the Send Later items, by id: for each the chat identifier, **the text of the message**, the time it is to go out, the send id the app chose, the message it replies to and its effect, its state and outcome. A pending item stays until it is sent or cancelled; a sent or failed one for a day after that, text included. While Send Later is off (`IMSG_SCHEDULE=0` or `FEATURE_SCHEDULE=0`) nothing is sent, cancelled or dropped and no route reaches the items: they stay until it is on again, or until you empty the key by hand (see [Retention and cleanup](#retention-and-cleanup)) | yes: chat identifiers and message text, on disk until the item is cancelled or a day after it is sent or fails |
 
 It does **not** hold the contact map: contact names come from BlueBubbles
 at startup and every six hours and live only in memory.
@@ -396,8 +420,10 @@ Not files, but worth listing in the same breath:
   number and guid and, when the message has a picture, the relay-relative
   path of the first image (`/attachment/<guid>` or `/bp_asset?u=…`; no
   hostname, no token). For a FaceTime ring: the call id, the caller's
-  address and name. Google can read all of it; TLS only protects it between
-  hops.
+  address and name. When a Send Later item is sent or fails, archived chat
+  or not: a data message with `kind` `scheduled`, the chat identifier, the
+  chat's name, the item's id and state, and the first 60 characters of the
+  text. Google can read all of it; TLS only protects it between hops.
 - **Ollama / MarianMT** (`/translate`): the message text being translated.
   Local services by default (`OLLAMA_URL`, `MARIAN_URL`).
 - **BlueBubbles**, **Beeper Desktop**: what you send, plus your BlueBubbles
@@ -473,6 +499,28 @@ Nothing rotates on its own. Suggestions:
 
   The same steps are part of
   [rotating the token](../SECURITY.md#rotating-the-token).
+
+- **Empty the Send Later queue** (`scheduled`) after you turned Send Later
+  off with items still stored: the routes answer `404` then and nothing
+  drops them, so their text stays on disk, and once Send Later is on again
+  a pending item more than six hours late is marked failed, with one push
+  each. Rotating the token empties it too, for another reason (see
+  [SECURITY.md](../SECURITY.md#rotating-the-token)). While Send Later is on
+  you need none of this: cancelling (`DELETE /scheduled/{id}`) removes a
+  pending or failed item at once, and a sent or failed one is dropped a day
+  after it finished. The edit removes every item, yours included, and the
+  relay has to be stopped for it:
+
+  ```sh
+  cd /path/to/selfbubbles-relay
+  launchctl bootout gui/$UID/org.selfbubbles.relay
+  sleep 2
+  venv/bin/python -c "import json,pathlib; p=pathlib.Path('relay_state.json'); s=json.loads(p.read_text()); s.pop('scheduled', None); p.write_text(json.dumps(s))"
+  rm -f relay_state.bak   # still holds the old items, and is read if relay_state.json fails to parse
+  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/org.selfbubbles.relay.plist
+  ```
+
+  `send_ids.json` is not touched; it holds no text.
 
 - **Forget the Google Messages mark** (`beeper_seen`) before you start this
   relay again after an older one ran in its place (a rollback), or after

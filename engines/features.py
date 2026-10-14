@@ -11,14 +11,18 @@ feature is unavailable:
 * ``map``      = ``MAPKIT_TOKEN`` and ``HA_TOKEN`` both set
 * ``translate``= ``OLLAMA_MODEL`` or ``MARIAN_URL`` set
 * ``voice``    = ``facetime``
+* ``schedule`` = on unless ``IMSG_SCHEDULE`` is ``0`` (or ``false``/``no``/
+  ``off``). Send Later needs no credential: the relay keeps the texts itself.
 
 A credential that is still a shipped placeholder (``BB_PASSWORD=change-me``,
 ``HA_TOKEN=CHANGE-ME``, ...; see ``placeholders.py``) counts as not set.
 
 ``FEATURE_FACETIME`` / ``FEATURE_MAP`` / ``FEATURE_TRANSLATE`` /
-``FEATURE_VOICE`` override the derived value when set (non-empty):
+``FEATURE_VOICE`` / ``FEATURE_SCHEDULE`` override the derived value when set (non-empty):
 ``1``/``true``/``yes``/``on`` is on, anything else is off.  The flags drive
-the app's UI only: every router stays mounted (objection 15).
+the app's UI only: every router stays mounted (objection 15), except the
+``/scheduled`` routes, which answer 404 while ``schedule`` is off (the
+relay then runs no scheduler, so a request it accepted would never go out).
 """
 
 from __future__ import annotations
@@ -27,9 +31,10 @@ from collections.abc import Mapping
 
 from placeholders import is_placeholder
 
-FEATURES = ("facetime", "map", "translate", "voice")
+FEATURES = ("facetime", "map", "translate", "voice", "schedule")
 
 _TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"0", "false", "no", "off"}
 
 
 def _set(env: Mapping[str, str], key: str) -> bool:
@@ -55,6 +60,7 @@ def derive_features(env: Mapping[str, str]) -> dict[str, bool]:
         "map": _secret_set(env, "MAPKIT_TOKEN") and _secret_set(env, "HA_TOKEN"),
         "translate": _set(env, "OLLAMA_MODEL") or _set(env, "MARIAN_URL"),
         "voice": facetime,
+        "schedule": (env.get("IMSG_SCHEDULE") or "").strip().lower() not in _FALSE,
     }
     out: dict[str, bool] = {}
     for feature in FEATURES:

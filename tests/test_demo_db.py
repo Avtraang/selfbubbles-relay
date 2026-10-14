@@ -709,7 +709,7 @@ def test_recipe_survives_the_paste_and_configures_no_real_integration(tmp_path, 
     chain = build_chain(got)
     assert engine_names(chain) == ["bluebubbles"]
     assert chain[0].url == f"http://127.0.0.1:{demo.DEMO_CONTACTS_PORT}"
-    assert derive_features(got) == {"facetime": False, "map": False, "translate": False, "voice": False}
+    assert derive_features(got) == {"facetime": False, "map": False, "translate": False, "voice": False, "schedule": True}
     # and without the names server's password there is no engine at all
     assert build_chain({**got, "BB_PASSWORD": ""}) == []
     # dropping the two send lines is what would bring AppleScript back
@@ -794,7 +794,7 @@ def test_recipe_wins_over_a_hostile_dotenv(built, relay_module, names_server, tm
     assert got == {
         "label": demo.DEMO_PHONE_LABEL, "self": [demo.SELF_NUMBER], "port": demo.DEMO_RELAY_PORT,
         "engines": ["bluebubbles"],
-        "features": {"facetime": False, "map": False, "translate": False, "voice": False},
+        "features": {"facetime": False, "map": False, "translate": False, "voice": False, "schedule": True},
         "beeper": False, "fcm": False, "ha": False, "mapkit": False, "bb_url": names_server,
         "state": str(info.state_path), "chatdb": str(info.path), "token": TOKEN, "news": False,
     }
@@ -811,7 +811,7 @@ def test_recipe_wins_over_a_hostile_dotenv(built, relay_module, names_server, tm
     assert rows["Home Assistant"] == "disabled"
     assert rows["MapKit"] == "not set"
     assert rows["send engines"] == "bluebubbles"
-    assert rows["features advertised"] == "(none)"
+    assert rows["features advertised"] == "schedule"          # Send Later needs nothing and is on by default
     text = demo.run_instructions(info, TOKEN)
     for name in ("BlueBubbles", "Beeper", "FCM push", "Home Assistant", "MapKit", "send engines",
                  "features advertised"):
@@ -826,7 +826,7 @@ def test_recipe_wins_over_a_hostile_dotenv(built, relay_module, names_server, tm
     assert leaked["beeper"] is True and leaked["ha"] is True and leaked["mapkit"] is True and leaked["fcm"] is True
     assert leaked["label"] == "Hostile Phone (0199)" and leaked["bb_url"] == "http://127.0.0.1:9"
     assert leaked["engines"] == ["applescript"] and leaked["port"] == 8700
-    assert leaked["features"] == {"facetime": True, "map": True, "translate": True, "voice": True}
+    assert leaked["features"] == {"facetime": True, "map": True, "translate": True, "voice": True, "schedule": True}
     assert not info.state_path.exists()                             # importing wrote no state
 
 

@@ -134,7 +134,9 @@ line sets, even to nothing, is not taken from it:
 Before a screenshot, read the doctor table the relay prints at start.  It must
 say: BlueBubbles ``password set, server reachable`` (that is the names server),
 Beeper ``disabled``, FCM push ``disabled``, Home Assistant ``disabled``, MapKit
-``not set``, send engines ``bluebubbles``, features advertised ``(none)``.
+``not set``, send engines ``bluebubbles``, features advertised ``schedule`` (Send
+Later needs nothing and is on by default; a text scheduled in the demo fails at
+its time, since the names server refuses every write).
 
 The demo is read-only.  It shows the thread list, the messages, replies,
 tapbacks, the edited message, the photo and the two link cards.  Sending,
@@ -1007,7 +1009,8 @@ def run_instructions(info: DemoInfo, token: str | None = None, *,
         "BlueBubbles \"password set, server reachable\" (the names server; \"unreachable\" means",
         "step 1 is not running and people show as numbers), Beeper \"disabled\", FCM push",
         "\"disabled\", Home Assistant \"disabled\", MapKit \"not set\", send engines \"bluebubbles\",",
-        "features advertised \"(none)\".",
+        "features advertised \"schedule\" (Send Later needs nothing; a text scheduled here fails",
+        "at its time, since the names server refuses every write).",
         "",
         "The demo is read-only: thread list, messages, replies, tapbacks, the edited message,",
         "the photo and the two link cards. Sending, tapbacks, new chats and FaceTime are refused",

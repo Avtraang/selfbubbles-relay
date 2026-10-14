@@ -114,7 +114,7 @@ def test_doctor_statuses_under_stub_env(r, table):
     assert by["MapKit"][0] == "not set"
     assert by["translation"][0] == "marian unreachable, ollama unreachable (OLLAMA_MODEL default)"
     assert by["send engines"][0] == "bluebubbles, applescript"
-    assert by["features advertised"][0] == "facetime, voice"
+    assert by["features advertised"][0] == "facetime, voice, schedule"
     assert by["data dir"][0] == f"{r.DATA_DIR} (writable)"
     if r.FT_ADMIT_APP.exists():                                             # the author's checkout
         assert by["FaceTime auto-admit"][0] == "on, script found, helper app found"

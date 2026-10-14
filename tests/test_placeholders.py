@@ -112,7 +112,7 @@ def test_a_placeholder_password_or_token_keeps_the_engine_out_of_the_chain(place
 
 @pytest.mark.parametrize("placeholder", SHIPPED)
 def test_a_placeholder_credential_derives_no_feature(placeholder):
-    off = {"facetime": False, "map": False, "translate": False, "voice": False}
+    off = {"facetime": False, "map": False, "translate": False, "voice": False, "schedule": True}   # schedule needs no credential
     assert derive_features({"BB_PASSWORD": placeholder}) == off
     assert derive_features({"MAPKIT_TOKEN": placeholder, "HA_TOKEN": placeholder}) == off
     assert derive_features({"MAPKIT_TOKEN": "a-real-token", "HA_TOKEN": placeholder}) == off
@@ -176,7 +176,7 @@ def test_relay_imported_with_every_example_placeholder_still_in_place(r5, relay_
     assert got["keys"] == ["BB_PASSWORD", "BEEPER_TOKEN", "HA_TOKEN", "IMSG_TOKEN", "MAPKIT_TOKEN"]
     assert got["locked"] is True
     assert got["engines"] == ["applescript"]
-    assert got["features"] == {"facetime": False, "map": False, "translate": False, "voice": False}
+    assert got["features"] == {"facetime": False, "map": False, "translate": False, "voice": False, "schedule": True}
     rows = {line.split("  ")[1].strip(): line for line in got["doctor"].splitlines()[3:]}
     assert "PLACEHOLDER" in rows["token (IMSG_TOKEN)"]
     for name in ("BlueBubbles", "Beeper (Google Messages)", "Home Assistant", "MapKit"):
